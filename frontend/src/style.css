@@ -1,0 +1,71 @@
+/* 게임 풀스크린 레이아웃 — Phaser 캔버스가 #app 안에 들어가고 FIT 모드로 비율 유지하며 화면 채움 */
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000000;
+  /* 모바일 텍스트 선택 / 길게 누르기 메뉴 차단 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  /* iOS 더블탭 줌 차단 */
+  touch-action: manipulation;
+  font-family: system-ui, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* #app — 화면 전체 차지 [Phase P-13/P-15: width 100vw / height 100vh / overflow hidden].
+   캔버스 가운데 정렬은 #app canvas 의 absolute + translate(-50%, -50%) 가 담당.
+   P-14 의 display:grid 제거 (자식 크기 영향 가능성). P-11 flex 도 제거 유지. */
+#app {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: #000000;
+  overflow: hidden;
+}
+
+/* canvas — [Phase P-15] absolute + translate(-50%, -50%) 로 화면 정중앙 직접 강제.
+   Phaser autoCenter: NO_CENTER (main.js) → Phaser 가 canvas margin/transform 안 건드림.
+   translate3d(-50%, -50%, 0) — GPU 레이어 (iOS 깜빡임 방지) + 가운데 정렬 동시 처리. */
+#app canvas {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  -webkit-transform: translate3d(-50%, -50%, 0);
+  transform: translate3d(-50%, -50%, 0);
+}
+
+/* 비네트 오버레이 — radial-gradient + multiply + breathing */
+#vignette {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 9999;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(20, 18, 16, 0) 35%,
+    rgba(20, 18, 16, 0.45) 75%,
+    rgba(20, 18, 16, 0.88) 100%
+  );
+  mix-blend-mode: multiply;
+  animation: vignettePulse 7s ease-in-out infinite;
+}
+
+@keyframes vignettePulse {
+  0%, 100% { opacity: 0.75; }
+  50%      { opacity: 0.92; }
+}

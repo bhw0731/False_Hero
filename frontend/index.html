@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- 모바일 풀스크린, 핀치 줌 차단 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <!-- 가로 전용 게임 — 모바일 풀스크린/홈 추가 시 가로 힌트 -->
+    <meta name="screen-orientation" content="landscape" />
+    <meta name="x5-orientation" content="landscape" />
+    <title>False Hero</title>
+    <!-- 폰트 (Phase P-4: 게임 UI 한글 = Galmuri11 픽셀 비트맵 / 타이틀 = Cinzel + Noto Serif KR) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <!-- 게임 UI 표준 한글 — Galmuri11 (픽셀 비트맵, 작은 사이즈/비정수 배율 환경에서도 자모 명확) -->
+    <!-- 패키지에 Galmuri7/9/11/14, GalmuriMono9/11 모두 포함. Galmuri11 = 표준 11px 비트맵. -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/quiple/galmuri/dist/galmuri.css" />
+    <!-- 영화 인트로/로고 — Cinzel Decorative (굵은 클래식 세리프) + Cinzel -->
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@500;700;900&display=swap" rel="stylesheet" />
+    <!-- 한글 영화 인트로 — Noto Serif KR (굵은 세리프) -->
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@700;900&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app"></div>
+    <!-- 비네트 오버레이 — radial-gradient + multiply 블렌드 + 숨쉬는 애니메이션 -->
+    <div id="vignette"></div>
+    <!-- 폰트 로드를 강제하기 위한 보이지 않는 요소 (Phase P-4: Galmuri11 / P-7b: emoji 추가) -->
+    <div style="position:absolute;visibility:hidden;font-family:'Galmuri11';">로드.한.</div>
+    <div style="position:absolute;visibility:hidden;font-family:'Cinzel Decorative';font-weight:700;">F.</div>
+    <div style="position:absolute;visibility:hidden;font-family:'Cinzel';">F.</div>
+    <div style="position:absolute;visibility:hidden;font-family:'Cinzel';font-weight:900;">F.</div>
+    <div style="position:absolute;visibility:hidden;font-family:'Noto Serif KR';font-weight:900;">농.</div>
+    <!-- [Phase P-7b] emoji 강제 로드 — Galmuri11 fallback chain 의 system emoji 폰트가 lazy 로드되지 않게. -->
+    <div style="position:absolute;visibility:hidden;left:-9999px;top:-9999px">💎🔥🛡✨💜🍖🃏🎒⚔️👑🎲▼▲▸▶︎✕</div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
