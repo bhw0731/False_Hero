@@ -92,17 +92,34 @@ export default class StageScene extends Phaser.Scene {
 
     // 다이아 잔액 표시 제거 — 스테이지 선택창은 양피지 지도에 집중.
 
-    // === 하단 패널 (스테이지명 + 설명 + 진입 버튼) ===
-    const panelW = 480, panelH = 110;
-    const panelCx = W * 0.5, panelCy = H * 0.90;
-    this._bottomPanel = this.add.graphics().setDepth(115);
-    this._bottomPanel.fillStyle(0x3D2817, 0.85);
-    this._bottomPanel.fillRoundedRect(panelCx - panelW / 2, panelCy - panelH / 2, panelW, panelH, 10);
-    this._bottomPanel.lineStyle(2, 0xD4A942, 0.6);
-    this._bottomPanel.strokeRoundedRect(panelCx - panelW / 2, panelCy - panelH / 2, panelW, panelH, 10);
-    // 상단 베벨
-    this._bottomPanel.fillStyle(0xFFE9B5, 0.10);
-    this._bottomPanel.fillRect(panelCx - panelW / 2 + 8, panelCy - panelH / 2 + 1, panelW - 16, 1);
+    // === 하단 패널 (스테이지명 + 설명 + 진입 버튼) — 다크 글래스 + 얇은 금선 ===
+    //   [P-68b] 7번 노드 안 가리게 — 화면 하단으로 내리고 높이 축소.
+    const panelW = 460, panelH = 96;
+    const panelCx = W * 0.5, panelCy = H * 0.905;
+    const px = panelCx - panelW / 2, py = panelCy - panelH / 2;
+    const g = this.add.graphics().setDepth(115);
+    // 1) 드롭 섀도우 (부드럽게 떠 보이게).
+    g.fillStyle(0x000000, 0.45);
+    g.fillRoundedRect(px + 3, py + 5, panelW, panelH, 14);
+    // 2) 본체 — 위→아래 어두워지는 그라데이션 (깊이감).
+    g.fillGradientStyle(0x2A1B10, 0x2A1B10, 0x14100A, 0x14100A, 0.96, 0.96, 0.96, 0.96);
+    g.fillRoundedRect(px, py, panelW, panelH, 14);
+    // 3) 상단 은은한 광택.
+    g.fillStyle(0xFFE9B5, 0.06);
+    g.fillRoundedRect(px + 4, py + 3, panelW - 8, panelH * 0.4, 12);
+    // 4) 얇은 이중 금선 — 외곽(은은) + 내곽(또렷한 헤어라인).
+    g.lineStyle(1, 0x8B6914, 0.5);
+    g.strokeRoundedRect(px - 1, py - 1, panelW + 2, panelH + 2, 15);
+    g.lineStyle(1, 0xD4A942, 0.85);
+    g.strokeRoundedRect(px + 4, py + 4, panelW - 8, panelH - 8, 11);
+    this._bottomPanel = g;
+    // 5) 좌우 상단 코너 장식 (작은 마름모).
+    const cornerY = py + 4;
+    [px + 14, px + panelW - 14].forEach((cxp) => {
+      const d = this.add.text(cxp, cornerY, '◆', {
+        fontFamily: FONT, fontSize: '11px', color: '#D4A942',
+      }).setOrigin(0.5, 0).setDepth(116).setAlpha(0.7);
+    });
 
     // === 스테이지 설명 (중간) ===
     this._stageDescText = this.add.text(panelCx, panelCy + 2, '', {

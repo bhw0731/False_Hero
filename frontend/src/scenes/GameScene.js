@@ -361,11 +361,7 @@ export default class GameScene extends Phaser.Scene {
       this._applyDiamondUpgrades();
       // ⚔ 장착 로드아웃 — 다이아 상점에서 산 장비를 슬롯에 장착
       this._applyLoadout();
-      // Phase H — 5/10스 새 진입 시 클라이맥스 배너 (이어하기 시엔 X — 이 분기 진입 X)
-      const cs = this.waveSystem.currentStage;
-      if (cs === 5 || cs === 10) {
-        this._showClimaxBanner(cs);
-      }
+      // [P-68] 5/10스 클라이맥스 배너(대전투/최종결전) 진입 연출 제거.
       // [무한 맵] 게임 시작 카드픽 폐기 — 레벨업 시에만 카드픽 (사용자 요청).
     }
     // 테스트 모드 — 새 게임/이어하기 무관 골드 무제한 모사 (구매 시 차감도 스킵)
@@ -906,48 +902,7 @@ export default class GameScene extends Phaser.Scene {
     });
   }
 
-  // === Phase H — 클라이맥스 배너 (5스 / 10스 새 진입 시 1.5초) ===
-  // 페이드 인 (300ms) → 1.2s 표시 → 페이드 아웃 (300ms). 이어하기 시엔 호출 X.
-  _showClimaxBanner(stage) {
-    const isStage5 = stage === 5;
-    const bgColor   = isStage5 ? 0x8B0000 : 0xFFD700;
-    const bgAlpha   = isStage5 ? 0.92    : 0.95;
-    const titleClr  = isStage5 ? '#FFFFFF' : '#1A1A1A';
-    const subClr    = isStage5 ? '#F1F5F9' : '#3F3F44';
-    const titleStr  = isStage5 ? '⚔  대 전 투  ⚔' : '👑 최 종 결 전 👑';
-    const subStr    = `스테이지 ${stage} · 10 웨이브 / 서브보스 2`;
-
-    // [Phase P-19] W=960/H=540 → 동적 scale.width/height (캔버스 1280×600 정합).
-    const W = this.scale.width, H = this.scale.height;
-    // [Phase P-50b] 클라이맥스 배너 — 화면 고정.
-    const bg = this.add.rectangle(W / 2, H / 2, W, H, bgColor, bgAlpha).setDepth(2500).setScrollFactor(0);
-    const top = this.add.rectangle(W / 2, H / 2 - 40, W * 0.85, 2, isStage5 ? 0xFFFFFF : 0x000000, 0.9).setDepth(2501).setScrollFactor(0);
-    const bot = this.add.rectangle(W / 2, H / 2 + 40, W * 0.85, 2, isStage5 ? 0xFFFFFF : 0x000000, 0.9).setDepth(2501).setScrollFactor(0);
-    const titleTxt = this.add.text(W / 2, H / 2 - 8, titleStr, {
-      fontFamily: FONT, fontSize: '40px', color: titleClr, fontStyle: '900',
-    }).setOrigin(0.5).setDepth(2502).setScrollFactor(0);
-    const subTxt = this.add.text(W / 2, H / 2 + 22, subStr, {
-      fontFamily: FONT, fontSize: '19px', color: subClr, fontStyle: '600',
-    }).setOrigin(0.5).setDepth(2502).setScrollFactor(0);
-    titleTxt.setShadow(2, 2, '#000000', 4, true, true);
-    subTxt.setShadow(1, 1, '#000000', 2, false, true);
-
-    const all = [bg, top, bot, titleTxt, subTxt];
-    all.forEach(el => el.setAlpha(0));
-
-    // 페이드 인 → 1.2s 표시 → 페이드 아웃
-    this.tweens.add({
-      targets: all, alpha: { from: 0, to: 1 }, duration: 300, ease: 'Sine.easeOut',
-      onComplete: () => {
-        this.time.delayedCall(1200, () => {
-          this.tweens.add({
-            targets: all, alpha: 0, duration: 300, ease: 'Sine.easeIn',
-            onComplete: () => all.forEach(el => el.destroy()),
-          });
-        });
-      },
-    });
-  }
+  // [P-68] 클라이맥스 배너(_showClimaxBanner) 제거됨 — 5/10스 진입 연출 폐기.
 
   // === 가방 사용 배지 — 좌측 사이드 누적 표시 ===
   _addUsedBagBadge(card) {
