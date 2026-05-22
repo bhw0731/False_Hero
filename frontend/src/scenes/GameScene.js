@@ -619,6 +619,12 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update(time, delta) {
+    // [P-67] 일시정지(매점/카드선택/모달) 중 콤보 타이머 정지.
+    //   Phaser time.now 는 일시정지 중에도 흐르므로, 만료 시각을 delta 만큼 미뤄 콤보 유지.
+    if (this.time && this.time.paused && this.player && this.player.killStreakCount > 0) {
+      this.player.killStreakEndTime += delta;
+      this.player.killBuffEndTime += delta;
+    }
     // [Phase P-50b 후속] 배경 무한 시각 — tilePositionX 는 텍스처 원본 픽셀 단위라
     //   setTileScale 사용 시 tileScaleX 로 보정해야 우측 끝 잘림 / 띠 안 생김.
     if (this._bgImage && this.cameras && this.cameras.main) {

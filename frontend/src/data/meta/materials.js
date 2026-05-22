@@ -8,8 +8,8 @@ const MAT_KEY = 'false-hero-materials';
 
 // 재료 정의 — 라벨 / 획득 가능 챕터 (이 챕터 번호 이상부터 메인 보스 드랍).
 export const MATERIALS = {
-  awakenStone:    { id: 'awakenStone',    label: '각성석', icon: '★', minChapter: 3, dropPerBoss: 1 },
-  transcendStone: { id: 'transcendStone', label: '초월석', icon: '✦', minChapter: 3, dropPerBoss: 1 },
+  awakenStone:    { id: 'awakenStone',    label: '각성석', icon: '★', minChapter: 1, dropPerBoss: 1 },
+  transcendStone: { id: 'transcendStone', label: '초월석', icon: '✦', minChapter: 1, dropPerBoss: 1 },
 };
 
 const DEFAULT_STATE = { awakenStone: 0, transcendStone: 0 };

@@ -1312,6 +1312,31 @@ export default class Player {
 
     // [Phase P-53] 색욕 펫 (_trySpawnPet) 호출 제거 — 펫 시스템 완전 폐기.
 
+    // === [P-67] 처치 콤보 — 흡혈 유무와 무관하게 모든 적 처치에 적용 ===
+    {
+      const nowC = (this.scene && this.scene.time) ? this.scene.time.now : 0;
+      // 콤보 스택 — 5초 내 연속 처치 시 +1 (상한 없음), 끊기면 1로 리셋.
+      if (nowC < this.killStreakEndTime) {
+        this.killStreakCount = this.killStreakCount + 1;
+      } else {
+        this.killStreakCount = 1;
+      }
+      if (this.killStreakCount > this.runStats.maxKillStreak) {
+        this.runStats.maxKillStreak = this.killStreakCount;
+      }
+      // 5초간 공격력 버프 — 흡혈 기반 보너스(있으면) + 콤보 스택 (스택당 +4%).
+      //   [P-67] 콤보 카운트는 무제한이지만 공격 보너스는 상한(B): 스택 보너스 최대 +60%.
+      const STREAK_BONUS_CAP = 0.60;   // 콤보 15 (15×0.04) 에서 도달.
+      const lsRate = this.skills.lifestealDouble
+        ? this.getStat('lifesteal') * 2
+        : this.getStat('lifesteal');
+      const baseBonus = lsRate * 3;
+      const streakBonus = Math.min(STREAK_BONUS_CAP, this.killStreakCount * 0.04);
+      this.killBuffMult = Math.max(this.killBuffMult, 1 + baseBonus + streakBonus);
+      this.killBuffEndTime = nowC + 5000;
+      this.killStreakEndTime = nowC + 5000;
+    }
+
     if (this.getStat('lifesteal') <= 0) return;
 
     // lifesteal 은 maxHp 비율 (예: 0.05 = 5%). 더블 스킬 시 ×2.
@@ -1359,27 +1384,7 @@ export default class Player {
     }
     // [Phase M7] 폭식 L4 — 회복 트리거 (흡혈 회복 포함). _onHealed 헬퍼가 임시 maxHp 처리.
     if (healAmount > 0) this._onHealed();
-
-    // 2) 콤보 스택 — 5초 내 연속 처치하면 +1 (최대 5), 끊기면 1로 리셋
-    if (now < this.killStreakEndTime) {
-      this.killStreakCount = Math.min(5, this.killStreakCount + 1);
-    } else {
-      this.killStreakCount = 1;
-    }
-    if (this.killStreakCount > this.runStats.maxKillStreak) {
-      this.runStats.maxKillStreak = this.killStreakCount;
-    }
-
-    // 3) 5초간 공격력 버프 — 기본(lifestealRate × 3) + 콤보 스택(스택당 ×8%)
-    // % 시스템 보정: 옛 정수 3 → bonus 0.15 (15%) 보존. lifestealRate 0.05 × 3 = 0.15 동일.
-    // lifestealRate 0.10 → 0.30 (30%). cap 으로 최종 제한.
-    const baseBonus = lifestealRate * 3;
-    const streakBonus = this.killStreakCount * 0.08;
-    const cap = this.skills.lifestealDouble ? 1.0 : 0.7;  // 더블 보유 시 최대 +100%, 아니면 +70%
-    this.killBuffMult = Math.max(this.killBuffMult, 1 + Math.min(cap, baseBonus + streakBonus));
-    // [무한 맵] 배속 시스템 폐기 — 콤보 5초 wall clock 그대로.
-    this.killBuffEndTime = now + 5000;
-    this.killStreakEndTime = now + 5000;
+    // [P-67] 콤보 스택/버프는 위쪽(early-return 앞)에서 모든 처치에 적용 — 여기선 흡혈 회복만 처리.
   }
 
   // 치명타 명중 시 호출 — 흡혈 의식 시너지 (CombatSystem 에서 호출)
