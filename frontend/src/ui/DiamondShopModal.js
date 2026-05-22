@@ -9,7 +9,7 @@ import { createModal } from './Modal.js';
 import { addText, FONT } from './theme.js';
 import {
   getDiamonds,
-  getSlotLevels, upgradeSlot,
+  getSlotLevels, upgradeSlot, getUpgradeOdds,
   devResetPurchases,
 } from '../data/diamonds.js';
 import { gameSettings } from '../data/settings.js';
@@ -210,6 +210,25 @@ export function showDiamondShop(scene, options = {}) {
     });
   };
 
+  // [P-65] 강화 성공/실패 연출.
+  const _flashUpgradeResult = (x, y, success) => {
+    const label = success ? '강화 성공!' : '강화 실패…';
+    const color = success ? '#34D399' : '#F87171';
+    const toast = addText(scene, x, y, label, {
+      fontFamily: FONT, fontSize: '26px', color, fontStyle: '900',
+      stroke: '#000000', strokeThickness: 4,
+    }).setOrigin(0.5).setDepth(1100);
+    modal.body.add(toast);
+    toast.setScale(0.6);
+    scene.tweens.add({
+      targets: toast, scale: 1.0, duration: 180, ease: 'Back.easeOut',
+    });
+    scene.tweens.add({
+      targets: toast, y: y - 36, alpha: 0, duration: 900, delay: 300, ease: 'Sine.easeIn',
+      onComplete: () => toast.destroy(),
+    });
+  };
+
   // === 영구 강화 탭 — 제거됨 (추후 도전과제 시스템으로 대체 예정).
   //   UPGRADES / isUpgradeOwned / buyUpgrade 데이터는 다른 시스템에서 참조 가능성 있어 유지.
 
@@ -371,6 +390,20 @@ export function showDiamondShop(scene, options = {}) {
     drawBoxContent(leftBoxFr,  '현재',  lv, 0);
     drawBoxContent(rightBoxFr, isMax ? '최대치' : '강화 후', nextLv, -2);
 
+    // [P-65] 성공 확률 표시 (버튼 위).
+    if (!isMax) {
+      const odds = getUpgradeOdds(slot);
+      const pct = Math.round(odds.rate * 100);
+      const oddsStr = odds.pity ? `성공 확률 ${pct}% (천장 확정!)` : `성공 확률 ${pct}%`;
+      const oddsColor = odds.pity ? '#34D399' : (pct >= 80 ? '#FFE9B5' : pct >= 50 ? '#FFD166' : '#F87171');
+      const oddsFr = _frC(0.620, 0.745, 0.30, 0.05);
+      const oddsTxt = addText(scene, oddsFr.cx, oddsFr.cy, oddsStr, {
+        fontFamily: FONT, fontSize: '14px', color: oddsColor, fontStyle: '900',
+      }).setOrigin(0.5);
+      oddsTxt.setShadow(1, 1, '#000000', 2, false, true);
+      _addEl(oddsTxt);
+    }
+
     // 하단 버튼 — 이미지 frame y 정렬.
     const btnFr = _frC(0.620, 0.835, 0.220, 0.075);
     if (isMax) {
@@ -430,8 +463,10 @@ export function showDiamondShop(scene, options = {}) {
           return;
         }
         _showConfirmPurchase(`${SLOT_LABELS[slot] || slot} Lv ${lv + 1}`, cost, () => {
-          if (upgradeSlot(slot)) {
+          const res = upgradeSlot(slot);
+          if (res && res.ok) {
             refreshBalance();
+            _flashUpgradeResult(btnFr.cx, btnFr.cy - btnFr.h, res.success);
             _renderContent();
           }
         });

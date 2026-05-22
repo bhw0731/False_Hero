@@ -162,29 +162,30 @@ export default class StageScene extends Phaser.Scene {
       this._rightArrow.on('pointerdown', () => this._switchDifficulty(1));
     }
 
-    // === 챕터 라벨 — 좌상단 (◀ 1챕터 (N/10) ▶) — 클릭으로 챕터 전환 ===
-    // 메인 라벨 — 어두운 다크브라운 + 베이지 stroke (양피지 위 가독성 강화).
-    this._labelText = this.add.text(54, 38, '', {
+    // === 챕터 라벨 — 상단 가운데 (◀ 1챕터 (N/10) ▶) — 클릭으로 챕터 전환 ===
+    const CHAP_CX = W * 0.5;
+    // 메인 라벨 — 어두운 다크브라운 + 베이지 그림자 (양피지 위 가독성).
+    this._labelText = this.add.text(CHAP_CX - 78, 38, '', {
       fontFamily: FONT, fontSize: '28px', color: '#1a0f08',
       fontStyle: '900', letterSpacing: 2,
     }).setOrigin(0, 0.5).setDepth(900);
     this._labelText.setShadow(1, 1, '#e8d4a8', 3, false, true);
     if (this._labelText.updateText) this._labelText.updateText();
-    // 진행도 — 고정 위치 (라벨 width 변경 영향 X).
-    this._progressText = this.add.text(140, 38, '', {
+    // 진행도 — 라벨 우측 고정 위치.
+    this._progressText = this.add.text(CHAP_CX + 32, 38, '', {
       fontFamily: FONT, fontSize: '18px', color: '#3d1f0a',
       fontStyle: '700',
     }).setOrigin(0, 0.5).setDepth(900);
     this._progressText.setShadow(1, 1, '#e8d4a8', 2, false, true);
-    // 좌/우 화살표 — 라벨 양 옆에 배치, 클릭 시 챕터 전환.
-    this._chapterLeftArrow = this.add.text(20, 38, '◀', {
+    // 좌/우 화살표 — 라벨 양 옆, 클릭 시 챕터 전환.
+    this._chapterLeftArrow = this.add.text(CHAP_CX - 108, 38, '◀', {
       fontFamily: FONT, fontSize: '20px', color: '#1a0f08', fontStyle: '700',
     }).setOrigin(0.5, 0.5).setDepth(900).setInteractive({ useHandCursor: true });
     this._chapterLeftArrow.setShadow(1, 1, '#e8d4a8', 2, false, true);
     this._chapterLeftArrow.on('pointerdown',      () => this._chapterLeftArrow.setColor('#8b6914'));
     this._chapterLeftArrow.on('pointerupoutside', () => this._chapterLeftArrow.setColor('#1a0f08'));
     this._chapterLeftArrow.on('pointerup',        () => { this._chapterLeftArrow.setColor('#1a0f08'); this._switchDifficulty(-1); });
-    this._chapterRightArrow = this.add.text(225, 38, '▶', {
+    this._chapterRightArrow = this.add.text(CHAP_CX + 108, 38, '▶', {
       fontFamily: FONT, fontSize: '20px', color: '#1a0f08', fontStyle: '700',
     }).setOrigin(0.5, 0.5).setDepth(900).setInteractive({ useHandCursor: true });
     this._chapterRightArrow.setShadow(1, 1, '#e8d4a8', 2, false, true);

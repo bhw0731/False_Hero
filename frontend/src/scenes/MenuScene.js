@@ -160,6 +160,12 @@ export default class MenuScene extends Phaser.Scene {
     this._diamondTxt.setShadow(0, 1, '#000000', 4, false, true);
     this._diamondIcon = this.add.image(W - 18 - this._diamondTxt.width - 8, 32, 'icon-diamond')
       .setDisplaySize(72, 44).setOrigin(1, 0.5).setDepth(900).setTint(0xFFD166);
+    // DEV 토글 등으로 잔액 변동 시 즉시 갱신.
+    this._refreshDiamond = () => {
+      if (!this._diamondTxt || !this._diamondTxt.scene) return;
+      this._diamondTxt.setText(`${getDiamonds().toLocaleString()}`);
+      if (this._diamondIcon) this._diamondIcon.setX(W - 18 - this._diamondTxt.width - 8);
+    };
 
     // 푸터 — 우측 하단 구석, 읽을 수 있을 정도
     this.add.text(W * 0.97, H * 0.97, 'v0.1', {
@@ -259,6 +265,7 @@ export default class MenuScene extends Phaser.Scene {
             this._devTriggerAnim = false;
             this._clearMenuLayer();
             this._buildMenuLayer();
+            this._refreshDiamond();
           });
         } else {
           gameSettings.testMode = true;
@@ -266,6 +273,7 @@ export default class MenuScene extends Phaser.Scene {
           this._devTriggerAnim = true;
           this._clearMenuLayer();
           this._buildMenuLayer();
+          this._refreshDiamond();
         }
       }, { devActive: isOn });
 

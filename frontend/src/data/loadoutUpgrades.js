@@ -16,6 +16,19 @@
 
 export const MAX_LEVEL = 10;
 
+// === [P-65] 확률 강화 (A: 소프트 + 천장) ===
+// 실패 시: 다이아만 소모, 레벨 유지 (하락 X). 연속 실패 PITY_THRESHOLD 회 → 다음 강화 100%.
+export const PITY_THRESHOLD = 5;
+
+// 현재 레벨(curLv) 기준 다음 강화 성공 확률 (0~1).
+export function getSuccessRate(curLv) {
+  if (curLv <= 3) return 1.0;    // Lv0→1 ~ Lv3→4
+  if (curLv <= 5) return 0.8;    // Lv4→5, Lv5→6
+  if (curLv <= 7) return 0.6;    // Lv6→7, Lv7→8
+  if (curLv === 8) return 0.4;   // Lv8→9
+  return 0.25;                   // Lv9→10
+}
+
 // 레벨별 다이아 비용 (누적 X — 한 단계 올릴 때마다 드는 비용).
 // 합산 8520 💎 = 모든 슬롯 풀강.
 export const LEVEL_COSTS = [

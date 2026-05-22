@@ -11,12 +11,13 @@
 //   slotLevels[slot]                     — 8 슬롯 강화 (Lv 0~10), data/loadoutUpgrades.js 참조
 
 import { gameSettings } from './settings.js';
-import { LEVEL_COSTS, MAX_LEVEL } from './loadoutUpgrades.js';
+import { LEVEL_COSTS, MAX_LEVEL, getSuccessRate, PITY_THRESHOLD } from './loadoutUpgrades.js';
 
 const DIAMOND_KEY = 'false-hero-diamonds';
 const DEV_DIAMONDS = 7777777;
 
 const EMPTY_SLOT_LEVELS = { head: 0, accessory: 0, body: 0, shield: 0, hands: 0, arms: 0, legs: 0, feet: 0 };
+const EMPTY_FAIL_STREAK = { head: 0, accessory: 0, body: 0, shield: 0, hands: 0, arms: 0, legs: 0, feet: 0 };
 
 const DEFAULT_STATE = {
   total: 0,
@@ -27,6 +28,7 @@ const DEFAULT_STATE = {
     startRevive: false,
   },
   slotLevels: { ...EMPTY_SLOT_LEVELS },   // Phase P-55 — 슬롯 강화 시스템
+  slotFails:  { ...EMPTY_FAIL_STREAK },   // [P-65] 슬롯별 연속 실패 (천장).
   challenges: {},
 };
 
@@ -34,6 +36,7 @@ const _emptyState = () => ({
   ...DEFAULT_STATE,
   upgrades:   { ...DEFAULT_STATE.upgrades },
   slotLevels: { ...EMPTY_SLOT_LEVELS },
+  slotFails:  { ...EMPTY_FAIL_STREAK },
 });
 const _isPlainObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -43,6 +46,16 @@ function _sanitizeSlotLevels(raw) {
   for (const k of Object.keys(EMPTY_SLOT_LEVELS)) {
     const v = raw[k];
     if (Number.isInteger(v) && v >= 0 && v <= MAX_LEVEL) out[k] = v;
+  }
+  return out;
+}
+
+function _sanitizeFailStreak(raw) {
+  if (!_isPlainObj(raw)) return { ...EMPTY_FAIL_STREAK };
+  const out = { ...EMPTY_FAIL_STREAK };
+  for (const k of Object.keys(EMPTY_FAIL_STREAK)) {
+    const v = raw[k];
+    if (Number.isInteger(v) && v >= 0) out[k] = v;
   }
   return out;
 }
@@ -59,6 +72,7 @@ function _read() {
       spent:       Number.isFinite(data.spent) ? data.spent : 0,
       upgrades:    _isPlainObj(data.upgrades)   ? { ...DEFAULT_STATE.upgrades, ...data.upgrades } : { ...DEFAULT_STATE.upgrades },
       slotLevels:  _sanitizeSlotLevels(data.slotLevels),
+      slotFails:   _sanitizeFailStreak(data.slotFails),
       challenges:  _isPlainObj(data.challenges) ? data.challenges  : {},
     };
   } catch {
@@ -129,19 +143,53 @@ export function getSlotLevel(slot) {
   return _read().slotLevels[slot] || 0;
 }
 
-// 한 단계 강화 시도. 성공 시 true, 실패 시 false (비용 부족 / 만렙).
+export function getSlotFailStreak(slot) {
+  return (_read().slotFails || {})[slot] || 0;
+}
+
+// [P-65] 다음 강화 정보 — UI 표시용 (성공률 / 천장 여부).
+export function getUpgradeOdds(slot) {
+  const state = _read();
+  const curLv = (state.slotLevels || {})[slot] || 0;
+  if (curLv >= MAX_LEVEL) return { rate: 0, isMax: true, pity: false, fails: 0 };
+  const fails = (state.slotFails || {})[slot] || 0;
+  const pity = fails >= PITY_THRESHOLD;
+  const rate = pity ? 1.0 : getSuccessRate(curLv);
+  return { rate, isMax: false, pity, fails };
+}
+
+// 한 단계 강화 시도 — [P-65] 확률 (A:소프트 + 천장).
+//   반환: { ok, success, reason }.
+//     ok      — 시도 자체가 유효 (비용 충분 + 만렙 아님).
+//     success — 강화 성공 여부 (실패해도 레벨 유지, 다이아만 소모).
+//   reason: 'maxlevel' | 'insufficient' | 'invalid' (ok=false 일 때).
 export function upgradeSlot(slot) {
   const state = _read();
-  if (!(slot in state.slotLevels)) return false;
+  if (!(slot in state.slotLevels)) return { ok: false, success: false, reason: 'invalid' };
   const curLv = state.slotLevels[slot];
-  if (curLv >= MAX_LEVEL) return false;
+  if (curLv >= MAX_LEVEL) return { ok: false, success: false, reason: 'maxlevel' };
   const cost = LEVEL_COSTS[curLv + 1];
   const isDev = !!(gameSettings && gameSettings.testMode);
-  if (!isDev && state.total < cost) return false;
-  state.slotLevels[slot] = curLv + 1;
+  if (!isDev && state.total < cost) return { ok: false, success: false, reason: 'insufficient' };
+
+  // 비용 소모 (성공/실패 무관 — A 소프트).
   if (!isDev) { state.total -= cost; state.spent += cost; }
+
+  // 성공 확률 — 천장(연속 실패 PITY_THRESHOLD) 도달 시 100%. 데브는 항상 성공.
+  const fails = (state.slotFails || {})[slot] || 0;
+  const rate = (fails >= PITY_THRESHOLD) ? 1.0 : getSuccessRate(curLv);
+  const success = isDev || (Math.random() < rate);
+
+  if (success) {
+    state.slotLevels[slot] = curLv + 1;
+    if (!state.slotFails) state.slotFails = { ...EMPTY_FAIL_STREAK };
+    state.slotFails[slot] = 0;   // 성공 시 천장 카운터 리셋.
+  } else {
+    if (!state.slotFails) state.slotFails = { ...EMPTY_FAIL_STREAK };
+    state.slotFails[slot] = fails + 1;
+  }
   _write(state);
-  return true;
+  return { ok: true, success, reason: null };
 }
 
 // === 데브 / 디버그 ===
@@ -150,6 +198,7 @@ export function devResetPurchases() {
   const state = _read();
   state.upgrades   = { startGold: false, startCard: false, startRevive: false };
   state.slotLevels = { ...EMPTY_SLOT_LEVELS };
+  state.slotFails  = { ...EMPTY_FAIL_STREAK };
   _write(state);
 }
 

@@ -47,13 +47,10 @@ export default class SettingsScene extends Phaser.Scene {
     const FRAME_X = FRAME_PAD_X;
     const FRAME_W = W - FRAME_PAD_X * 2;
     const FRAME_H = FRAME_BOT - FRAME_TOP;
+    // 프레임 채움 (depth 0).
     const frameG = this.add.graphics().setDepth(0);
     frameG.fillStyle(0x0E1726, 0.85);
     frameG.fillRoundedRect(FRAME_X, FRAME_TOP, FRAME_W, FRAME_H, 8);
-    frameG.lineStyle(1, 0xC5A059, 0.6);
-    frameG.strokeRoundedRect(FRAME_X, FRAME_TOP, FRAME_W, FRAME_H, 8);
-    frameG.fillStyle(0xFFFFFF, 0.08);
-    frameG.fillRect(FRAME_X + 2, FRAME_TOP + 2, FRAME_W - 4, 1);
 
     // === 스크롤 컨테이너 — 박스 외곽 안쪽까지만 mask (테두리 두께 inset). ===
     this._panel = this.add.container(0, 0).setDepth(1);
@@ -66,6 +63,22 @@ export default class SettingsScene extends Phaser.Scene {
     maskG.fillStyle(0xffffff);
     maskG.fillRect(MASK_X, MASK_Y, MASK_W, MASK_H);
     this._panel.setMask(maskG.createGeometryMask());
+
+    // === Occluder — mask 보조: 박스 위/아래 바깥 영역을 검정으로 가림 (depth 50). ===
+    //   geometry mask 가 일부 환경에서 새는 것 방지 (스크롤 시 박스 밖 누출 차단).
+    const occTop = this.add.graphics().setDepth(50);
+    occTop.fillStyle(0x000000, 1);
+    occTop.fillRect(0, 0, W, FRAME_TOP);
+    const occBot = this.add.graphics().setDepth(50);
+    occBot.fillStyle(0x000000, 1);
+    occBot.fillRect(0, FRAME_BOT, W, H - FRAME_BOT);
+
+    // === 프레임 외곽선 — occluder 위에 다시 그려 박스 라인 보이게 (depth 60). ===
+    const frameBorder = this.add.graphics().setDepth(60);
+    frameBorder.lineStyle(1, 0xC5A059, 0.6);
+    frameBorder.strokeRoundedRect(FRAME_X, FRAME_TOP, FRAME_W, FRAME_H, 8);
+    frameBorder.fillStyle(0xFFFFFF, 0.08);
+    frameBorder.fillRect(FRAME_X + 2, FRAME_TOP + 2, FRAME_W - 4, 1);
 
     // === 콘텐츠 — 모든 행 요소는 _track 으로 panel 에 자동 등록. ===
     const PAD_INNER = Math.max(16, Math.round(FRAME_W * 0.04));
@@ -118,6 +131,7 @@ export default class SettingsScene extends Phaser.Scene {
     this._scrollTopY = MASK_Y;
     this._scrollBotY = MASK_Y + MASK_H;
     this._initScrollHandlers();
+    this._repositionCodeInput();   // 스크롤 경계 확정 후 input 위치 재조정.
 
     // ESC = 뒤로.
     this.input.keyboard.on('keydown-ESC', () => this._exit());
@@ -158,6 +172,7 @@ export default class SettingsScene extends Phaser.Scene {
   _setScroll(yPx) {
     this._scrollY = Math.max(0, Math.min(this._scrollMaxY, yPx));
     if (this._panel) this._panel.y = -this._scrollY;
+    this._repositionCodeInput();   // 스크롤 시 HTML input 위치 동기화.
   }
 
   _exit() {
@@ -289,119 +304,129 @@ export default class SettingsScene extends Phaser.Scene {
 
   _makeCodeInputRow(lx, rx, y) {
     this._rowLabel(lx, y, '코드 입력');
-    const boxW = 180, boxH = 36;
-    const boxCx = rx - 50 - boxW / 2 - 8;
+    const boxW = 150, boxH = 36;
+    // 확인 버튼(cx=rx-50, w=90 → 좌측 rx-95)과 겹치지 않게 우측 끝 rx-105 로 제한.
+    const boxRight = rx - 105;
+    const boxCx = boxRight - boxW / 2;
+    // 박스 시각 (HTML input 뒤 배경 — 테두리만 살짝).
     const g = this._track(this.add.graphics());
     g.fillStyle(0x05080F, 0.85);
     g.fillRoundedRect(boxCx - boxW / 2, y - boxH / 2, boxW, boxH, 6);
-    g.lineStyle(1, 0xFFFFFF, 0.20);
+    g.lineStyle(1, 0xC5A059, 0.4);
     g.strokeRoundedRect(boxCx - boxW / 2, y - boxH / 2, boxW, boxH, 6);
-    this._codeTxt = this._track(this.add.text(boxCx, y, '코드를 입력하세요', {
-      fontFamily: FONT, fontSize: '13px', color: COLOR_DIM, fontStyle: '600', letterSpacing: 1,
-    }).setOrigin(0.5));
-    const boxHit = this._track(this.add.zone(boxCx, y, boxW, Math.max(boxH, 44)).setOrigin(0.5)
-      .setInteractive({ useHandCursor: true }));
-    boxHit.on('pointerup', () => this._openCodeInputModal());
-    this._makePillBtn(rx - 50, y, 90, 36, '확인', () => this._openCodeInputModal());
+    // 박스 좌표 보관 — HTML input 정렬용.
+    this._codeBoxGeom = { cx: boxCx, y, w: boxW, h: boxH };
+    // 인라인 HTML input 마운트 (클릭 시 바로 입력).
+    this._mountCodeInput();
+    // 확인 버튼 → 입력값 적용.
+    this._makePillBtn(rx - 50, y, 90, 36, '확인', () => this._submitCode());
+
+    // 스크롤/씬 종료 시 input 위치 갱신·정리.
+    this.events.on('shutdown', () => this._unmountCodeInput());
+    this.events.on('destroy',  () => this._unmountCodeInput());
   }
 
-  _openCodeInputModal() {
-    if (this._codeModalEl) return;
+  // Phaser 좌표 → 화면(브라우저) 좌표 변환 (FIT 스케일 반영).
+  _phaserToScreen(px, py) {
     const canvas = this.game && this.game.canvas;
-    const rect = canvas ? canvas.getBoundingClientRect() : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
-    const root = document.createElement('div');
-    root.style.cssText = `
-      position: fixed;
-      left: ${rect.left}px; top: ${rect.top}px;
-      width: ${rect.width}px; height: ${rect.height}px;
-      z-index: 99999;
-      display: flex; align-items: center; justify-content: center;
-      background: rgba(0, 0, 0, 0.7);
-      font-family: 'Galmuri11', sans-serif;
-    `;
-    const box = document.createElement('div');
-    box.style.cssText = `
-      background: #0E1726; color: #FFE9B5;
-      border: 1px solid #C5A059; border-radius: 8px;
-      padding: 28px 32px;
-      min-width: 320px; max-width: 90%;
-      box-shadow: 0 4px 24px rgba(0,0,0,0.6);
-      display: flex; flex-direction: column; gap: 18px;
-    `;
-    const title = document.createElement('div');
-    title.textContent = '◈ 코드 입력';
-    title.style.cssText = 'font-size: 20px; font-weight: 900; color: #FFD166; text-align: center;';
+    const rect = canvas ? canvas.getBoundingClientRect()
+      : { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight };
+    const sx = rect.width / this.scale.width;
+    const sy = rect.height / this.scale.height;
+    return { left: rect.left, top: rect.top, sx, sy,
+      x: rect.left + px * sx, y: rect.top + py * sy };
+  }
+
+  _mountCodeInput() {
+    if (this._codeInputEl) return;
     const input = document.createElement('input');
     input.type = 'text';
     input.maxLength = 32;
-    input.placeholder = '코드를 입력하세요';
+    input.placeholder = '코드 입력';
     input.autocomplete = 'off';
     input.autocapitalize = 'characters';
+    input.autocorrect = 'off';
+    input.spellcheck = false;
+    input.enterKeyHint = 'done';
     input.style.cssText = `
-      width: 100%;
-      padding: 12px 14px;
-      font-size: 18px;
-      background: #05080F; color: #FFE9B5;
-      border: 1px solid #C5A059; border-radius: 6px;
-      outline: none;
-      letter-spacing: 2px;
+      position: fixed; z-index: 9000;
       box-sizing: border-box;
+      background: transparent; color: #FFE9B5;
+      border: none; outline: none;
+      text-align: center; letter-spacing: 1px;
+      font-family: ${FONT};
     `;
-    const btnRow = document.createElement('div');
-    btnRow.style.cssText = 'display: flex; gap: 12px; justify-content: flex-end;';
-    const mkBtn = (label, primary, onClick) => {
-      const b = document.createElement('button');
-      b.textContent = label;
-      b.style.cssText = `
-        padding: 10px 22px;
-        font-size: 15px; font-weight: 900;
-        border-radius: 6px; border: 1px solid ${primary ? '#FFE9B5' : '#4A4A50'};
-        background: ${primary ? '#C5A059' : '#1A1F2E'};
-        color: ${primary ? '#1A0F08' : '#CBD5E1'};
-        cursor: pointer; min-width: 80px;
-      `;
-      b.addEventListener('click', onClick);
-      return b;
-    };
-    const close = () => {
-      if (this._codeModalEl) {
-        document.body.removeChild(this._codeModalEl);
-        this._codeModalEl = null;
-      }
-    };
-    const cancelBtn = mkBtn('취소', false, close);
-    const okBtn = mkBtn('확인', true, () => {
-      const val = (input.value || '').trim();
-      close();
-      if (val) this._applyCode(val);
-    });
-    btnRow.appendChild(cancelBtn);
-    btnRow.appendChild(okBtn);
-    box.appendChild(title);
-    box.appendChild(input);
-    box.appendChild(btnRow);
-    root.appendChild(box);
-    root.addEventListener('click', (e) => { if (e.target === root) close(); });
     input.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') okBtn.click();
-      else if (e.key === 'Escape') close();
+      if (e.key === 'Enter') { e.preventDefault(); this._submitCode(); }
     });
-    document.body.appendChild(root);
-    this._codeModalEl = root;
-    setTimeout(() => input.focus(), 50);
+    document.body.appendChild(input);
+    this._codeInputEl = input;
+    this._repositionCodeInput();
+  }
+
+  _repositionCodeInput() {
+    const input = this._codeInputEl;
+    const geom = this._codeBoxGeom;
+    if (!input || !geom) return;
+    // 스크롤 오프셋 반영 (panel.y).
+    const panelY = this._panel ? this._panel.y : 0;
+    const cyPhaser = geom.y + panelY;
+    // mask 영역 밖이면 숨김.
+    if (cyPhaser < this._scrollTopY || cyPhaser > this._scrollBotY) {
+      input.style.display = 'none';
+      return;
+    }
+    input.style.display = 'block';
+    const m = this._phaserToScreen(geom.cx, cyPhaser);
+    const wPx = geom.w * m.sx;
+    const hPx = geom.h * m.sy;
+    input.style.left   = `${m.x - wPx / 2}px`;
+    input.style.top    = `${m.y - hPx / 2}px`;
+    input.style.width  = `${wPx}px`;
+    input.style.height = `${hPx}px`;
+    input.style.fontSize = `${Math.max(11, Math.round(13 * m.sy))}px`;
+  }
+
+  _unmountCodeInput() {
+    if (this._codeInputEl) {
+      try { document.body.removeChild(this._codeInputEl); } catch {}
+      this._codeInputEl = null;
+    }
+  }
+
+  _submitCode() {
+    const input = this._codeInputEl;
+    if (!input) return;
+    const val = (input.value || '').trim();
+    if (!val) return;
+    this._applyCode(val);
+    input.value = '';
+    try { input.blur(); } catch {}
   }
 
   _applyCode(code) {
-    const c = code.toUpperCase();
+    const c = code.toUpperCase().replace(/\s+/g, '');   // 공백 무시.
+    const emit = (msg) => { if (this.events && this.events.emit) this.events.emit('toast', msg); };
     if (c === 'DIAMOND100') {
       addDiamonds(100, 'coupon:DIAMOND100');
-      if (this.events && this.events.emit) this.events.emit('toast', '💎 +100 적용됨');
+      emit('💎 +100 적용됨');
     } else if (c === 'DEVMODE') {
-      gameSettings.testMode = !gameSettings.testMode;
+      gameSettings.testMode = true;
       saveSettings();
-      if (this.events && this.events.emit) this.events.emit('toast', `DEV ${gameSettings.testMode ? 'ON' : 'OFF'}`);
+      // 메인 메뉴에 DEV MODE 항목 노출되도록 잠금 해제 플래그도 설정.
+      try { localStorage.setItem('false-hero-dev-unlocked', '1'); } catch {}
+      emit('DEV MODE ON');
+    } else if (c === 'DEVMODECLOSED') {
+      gameSettings.testMode = false;
+      saveSettings();
+      // 잠금 해제 플래그 제거 → 메인 메뉴에서 DEV MODE 항목 사라짐 (구 키도 제거 — 마이그레이션 복원 방지).
+      try {
+        localStorage.removeItem('false-hero-dev-unlocked');
+        localStorage.removeItem('first-game-dev-unlocked');
+      } catch {}
+      emit('DEV MODE OFF');
     } else {
-      if (this.events && this.events.emit) this.events.emit('toast', '❌ 잘못된 코드');
+      emit('❌ 잘못된 코드');
     }
   }
 
