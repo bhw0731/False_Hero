@@ -2,7 +2,7 @@
 // 잡몹과 같은 16종 스프라이트의 큰 사이즈(128) / 강한 능력치 버전
 // [Phase P-44d] 모든 보스 attackRange = 100 (근접). 추후 보스 대변경 시 재결정.
 
-import { getBossOverrides } from './adminConfig.js';
+import { getBossOverrides } from '../adminConfig.js';
 
 export const bossTypes = [
   // 1. 거대 슬라임 — 점점 커지는 슬라임

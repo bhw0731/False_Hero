@@ -12,8 +12,8 @@ import { hasSave, loadGame, clearSave } from '../data/save.js';
 import { gameSettings, saveSettings } from '../data/settings.js';
 import { FONT, FONT_DISP } from '../ui/theme.js';
 import { sound } from '../systems/SoundManager.js';
-import { getDiamonds } from '../data/diamonds.js';
-import { showDiamondShop } from '../ui/DiamondShopModal.js';
+import { getDiamonds } from '../data/meta/diamonds.js';
+import { showUpgradeShop } from '../ui/modals/UpgradeShopModal.js';
 import { applyNearestToPixelTextures } from '../data/spriteOptions.js';
 import { attachTouchFeedback } from '../ui/touchFeedback.js';
 
@@ -48,10 +48,10 @@ export default class MenuScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image('background', 'sprites/menuui/main-menu.png');
+    this.load.image('background', 'sprites/screens/main-menu.png');
     // 강화 상점 UI 배경 (Phase P-55).
-    this.load.image('ui-upgrade-equipment', 'sprites/menuui/upgrade-equipment.png');
-    this.load.image('ui-challenges', 'sprites/menuui/challenges.png');
+    this.load.image('ui-upgrade-equipment', 'sprites/screens/upgrade-equipment.png');
+    this.load.image('ui-challenges', 'sprites/screens/challenges.png');
     // 인라인 아이콘 — 💎 / 🪙 이모지 대체 (게임 톤 통일).
     this.load.image('icon-diamond', 'sprites/icons/diamond-icon.png');
     this.load.image('icon-gold',    'sprites/icons/gold-icon.png');
@@ -303,14 +303,14 @@ export default class MenuScene extends Phaser.Scene {
       this._addMenuItem(this._menuY0 + this._menuStep * i++, '도전 과제',
         () => this.scene.start('ChallengeScene'));
       this._addMenuItem(this._menuY0 + this._menuStep * i++, '강화 상점',
-        () => this._openDiamondShop());
+        () => this._openUpgradeShop());
     } else {
       this._addMenuItem(this._menuY0 + this._menuStep * i++, '게임 시작',
         () => this.scene.start('StageScene', { newGame: true }));
       this._addMenuItem(this._menuY0 + this._menuStep * i++, '도전 과제',
         () => this.scene.start('ChallengeScene'));
       this._addMenuItem(this._menuY0 + this._menuStep * i++, '강화 상점',
-        () => this._openDiamondShop());
+        () => this._openUpgradeShop());
     }
     if (this._devUnlocked) {
       const isOn = !!gameSettings.testMode;
@@ -380,9 +380,9 @@ export default class MenuScene extends Phaser.Scene {
     }
   }
 
-  // 💎 다이아 상점 — 별도 씬으로 진입 (옛 모달 폐기).
-  _openDiamondShop() {
-    this.scene.start('DiamondShopScene');
+  // ⚒ 강화 상점 — 별도 씬으로 진입.
+  _openUpgradeShop() {
+    this.scene.start('UpgradeShopScene');
   }
 
   _addMenuItem(y, label, cb, opts) {

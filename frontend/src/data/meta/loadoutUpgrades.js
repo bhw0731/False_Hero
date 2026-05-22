@@ -16,17 +16,27 @@
 
 export const MAX_LEVEL = 10;
 
-// === [P-65] 확률 강화 (A: 소프트 + 천장) ===
-// 실패 시: 다이아만 소모, 레벨 유지 (하락 X). 연속 실패 PITY_THRESHOLD 회 → 다음 강화 100%.
-export const PITY_THRESHOLD = 5;
+// === [P-65] 확률 강화 (소프트, 천장 없음) ===
+// 실패 시: 다이아만 소모, 레벨 유지 (하락 X). 천장 X — 순수 확률.
+//   다이아 수급 콘텐츠로 강화 시도 횟수를 커버하는 설계.
+export const PITY_THRESHOLD = 0;   // 0 = 천장 비활성.
 
-// 현재 레벨(curLv) 기준 다음 강화 성공 확률 (0~1).
+// 현재 레벨(curLv) 기준 다음 강화 성공 확률 (0~1). curLv = 강화 전 레벨.
+const _SUCCESS_RATES = [
+  1.00,  // 0 → 1
+  0.85,  // 1 → 2
+  0.70,  // 2 → 3
+  0.55,  // 3 → 4
+  0.40,  // 4 → 5
+  0.30,  // 5 → 6
+  0.25,  // 6 → 7
+  0.20,  // 7 → 8
+  0.15,  // 8 → 9
+  0.10,  // 9 → 10
+];
 export function getSuccessRate(curLv) {
-  if (curLv <= 3) return 1.0;    // Lv0→1 ~ Lv3→4
-  if (curLv <= 5) return 0.8;    // Lv4→5, Lv5→6
-  if (curLv <= 7) return 0.6;    // Lv6→7, Lv7→8
-  if (curLv === 8) return 0.4;   // Lv8→9
-  return 0.25;                   // Lv9→10
+  if (curLv < 0 || curLv >= MAX_LEVEL) return 0;
+  return _SUCCESS_RATES[curLv] != null ? _SUCCESS_RATES[curLv] : 0.01;
 }
 
 // 레벨별 다이아 비용 (누적 X — 한 단계 올릴 때마다 드는 비용).

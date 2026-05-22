@@ -10,10 +10,10 @@ import { commonCards, CARD_TIER_COLORS } from '../data/cards.js';
 import { items, SLOTS, SLOT_LABELS } from '../data/items.js';
 import { PASSIVES } from '../data/passives.js';
 import { specialCards } from '../data/specialCards.js';
-import { isUpgradeOwned, isEquipmentUnlocked, getSlotLevels } from '../data/diamonds.js';
-import { STAR_CHAPTER } from '../data/chapterStars.js';
-import { getSlotEffect } from '../data/loadoutUpgrades.js';
-import { createModal } from '../ui/Modal.js';
+import { isUpgradeOwned, isEquipmentUnlocked, getSlotLevels } from '../data/meta/diamonds.js';
+import { STAR_CHAPTER } from '../data/meta/chapterStars.js';
+import { getSlotEffect } from '../data/meta/loadoutUpgrades.js';
+import { createModal } from '../ui/modals/Modal.js';
 import { makeGlassBtn } from '../ui/glassBtn.js';
 import { FONT } from '../ui/theme.js';
 import { attachTouchFeedback } from '../ui/touchFeedback.js';
@@ -22,19 +22,19 @@ import {
   showGameOver  as fxShowGameOver,
   showGameClear as fxShowGameClear,
   showStageClear as fxShowStageClear,
-} from '../ui/CombatFX.js';
+} from '../ui/hud/CombatFX.js';
 import {
   showCardSelection  as fxShowCardSelection,
   showPurchasedItems as fxShowPurchasedItems,
   showPickedCards    as fxShowPickedCards,
-} from '../ui/InventoryModals.js';
-import { showInventory as fxShowInventory } from '../ui/InventoryModal.js';
+} from '../ui/modals/InventoryModals.js';
+import { showInventory as fxShowInventory } from '../ui/modals/InventoryModal.js';
 import {
   showPauseMenu     as fxShowPauseMenu,
   showSettingsModal as fxShowSettingsModal,
-} from '../ui/PauseModals.js';
-import { showSynergyInfo as fxShowSynergyInfo } from '../ui/SynergyInfoModal.js';
-import { showHelpModal as fxShowHelpModal } from '../ui/HelpModal.js';
+} from '../ui/modals/PauseModals.js';
+import { showSynergyInfo as fxShowSynergyInfo } from '../ui/modals/SynergyInfoModal.js';
+import { showHelpModal as fxShowHelpModal } from '../ui/modals/HelpModal.js';
 import {
   showShop         as fxShowShop,
   rerollShop       as fxRerollShop,
@@ -42,12 +42,12 @@ import {
   buyItem          as fxBuyItem,
   buySpecialCard   as fxBuySpecialCard,
   exitShop         as fxExitShop,
-} from '../ui/ShopModal.js';
-import TopBar from '../ui/TopBar.js';
-import ComboFloat from '../ui/ComboFloat.js';
-import PotionSlotPanel from '../ui/PotionSlotPanel.js';
-import PickedCardsStrip from '../ui/PickedCardsStrip.js';
-import BuffStrip from '../ui/BuffStrip.js';
+} from '../ui/modals/ShopModal.js';
+import TopBar from '../ui/hud/TopBar.js';
+import ComboFloat from '../ui/hud/ComboFloat.js';
+import PotionSlotPanel from '../ui/hud/PotionSlotPanel.js';
+import PickedCardsStrip from '../ui/hud/PickedCardsStrip.js';
+import BuffStrip from '../ui/hud/BuffStrip.js';
 import { ALL_SPRITES, PLAYER_SPRITE, applyNearestToPixelTextures } from '../data/spriteOptions.js';
 import { gameSettings, saveSettings, DIFFICULTY_ORDER } from '../data/settings.js';
 import { sound } from '../systems/SoundManager.js';

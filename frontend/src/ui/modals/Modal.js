@@ -2,7 +2,7 @@
 // [Phase P-7b] 캔버스 1280×600 으로 변경됨 — 하드코딩 X, scene.scale 동적 조회.
 // 사용: const modal = createModal(scene, { title, width, height, ... });
 //       modal.body 에 자식 추가, modal.close() 로 닫기.
-import { FONT, addText } from './theme.js';
+import { FONT, addText } from '../theme.js';
 
 const MODAL_DEPTH = 1000;
 const HEADER_H = 40;
@@ -44,7 +44,7 @@ export function createModal(scene, opts = {}) {
   const collapsable    = opts.collapsable === true;
 
   // frameless: 모달 외곽 (그림자/배경/외곽선/헤더 액센트) 전부 생략.
-  //   풀스크린 씬 (DiamondShopScene 등) 에서 ChallengeScene 과 통일된 무박스 헤더 구현용.
+  //   풀스크린 씬 (UpgradeShopScene 등) 에서 ChallengeScene 과 통일된 무박스 헤더 구현용.
   const frameless = opts.frameless === true;
 
   // === [세련화] 배경 오버레이 — 어둠 0.6 (옛 0.5 → 더 강조), 모달 부각 ===

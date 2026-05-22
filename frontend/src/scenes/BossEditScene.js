@@ -2,7 +2,7 @@
 // 4종 보스의 능력치 / 외형 / 이름을 수정. 변경 사항은 adminConfig 에 저장됨.
 
 import Phaser from 'phaser';
-import { bossTypes } from '../data/bosses.js';
+import { bossTypes } from '../data/enemies/bosses.js';
 import {
   getBossOverrides,
   setBossOverride,

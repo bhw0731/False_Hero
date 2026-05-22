@@ -53,6 +53,19 @@ export function getCurrentChapter() {
   return CHAPTERS[getCurrentChapterIndex()];
 }
 
+// 이동 가능한 최대 챕터 인덱스 — cleared(클리어) 기준.
+//   한 챕터를 전부 클리어하면 (수령 여부 무관) 다음 챕터로 이동 가능.
+export function getMaxChapterIndex() {
+  const ch = _readChallenges();
+  let maxIdx = 0;
+  for (let i = 0; i < CHAPTERS.length; i++) {
+    maxIdx = i;
+    const allCleared = CHAPTERS[i].items.every(it => _getEntry(ch, it.id).cleared);
+    if (!allCleared) break;   // 이 챕터 미클리어 → 더 못 넘어감.
+  }
+  return maxIdx;
+}
+
 // 챕터 인덱스로 진행도 조회 — 인자 없으면 현재 챕터.
 export function getChapterProgress(idx) {
   const i = (typeof idx === 'number') ? idx : getCurrentChapterIndex();

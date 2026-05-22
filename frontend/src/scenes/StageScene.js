@@ -6,9 +6,8 @@ import { hasSave, loadGame, PROGRESS_KEY, LAST_DIFF_KEY } from '../data/save.js'
 import { gameSettings, getAvailableChapters, difficultyLabels } from '../data/settings.js';
 import { FONT } from '../ui/theme.js';
 import { sound } from '../systems/SoundManager.js';
-import { getDiamonds, isEquipmentUnlocked } from '../data/diamonds.js';
-import { STAR_CHAPTER, getStageStars, getTotalStars, MAX_TOTAL_STARS, getChests, getChestState, openChest, CHEST_STATE } from '../data/chapterStars.js';
-import { showLoadout } from '../ui/EquipmentLoadoutModal.js';
+import { getDiamonds, isEquipmentUnlocked } from '../data/meta/diamonds.js';
+import { STAR_CHAPTER, getStageStars, getTotalStars, MAX_TOTAL_STARS, getChests, getChestState, openChest, CHEST_STATE } from '../data/meta/chapterStars.js';
 import { applyNearestToPixelTextures } from '../data/spriteOptions.js';
 import { attachTouchFeedback } from '../ui/touchFeedback.js';
 
@@ -51,7 +50,7 @@ export default class StageScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image('stage_select', 'sprites/menuui/stage_select.png');
+    this.load.image('stage_select', 'sprites/screens/stage_select.png');
     this.load.image('icon-diamond', 'sprites/icons/diamond-icon.png');
     this.load.image('icon-gold',    'sprites/icons/gold-icon.png');
   }

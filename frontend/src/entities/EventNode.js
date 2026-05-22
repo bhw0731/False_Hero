@@ -4,8 +4,8 @@
 //   'trial'    — 신의 시험. 모달 표시 → 수락 시 디버프 + 다이아 보상 / 거절 시 skip.
 
 import { addText, FONT } from '../ui/theme.js';
-import { showConfirmDialog } from '../ui/ConfirmDialog.js';
-import { addDiamonds } from '../data/diamonds.js';
+import { showConfirmDialog } from '../ui/modals/ConfirmDialog.js';
+import { addDiamonds } from '../data/meta/diamonds.js';
 import { sound } from '../systems/SoundManager.js';
 
 const NODE_RADIUS = 22;

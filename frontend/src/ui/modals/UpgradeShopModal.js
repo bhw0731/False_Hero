@@ -1,20 +1,19 @@
-// 💎 강화 상점 (Phase P-55) — 이미지 배경 기반 풀스크린 모달.
-//   탭 1: 영구 강화 — 3종 (startGold/startCard/startRevive)
-//   탭 2: 장비 강화 — 8 슬롯 Lv 0~10
+// ⚒ 강화 상점 — 장비 8슬롯 Lv 0~10 강화 (확률 + 소프트 실패). 풀스크린 모달.
 //
-// 배경: sprites/menuui/upgrade-equipment.png (영구 강화 탭 제거됨)
+// 배경: sprites/screens/upgrade-equipment.png
 //   이미지 원본 1831×859, 모달 body 영역에 stretch 로 깔고 frame 좌표 fraction 으로 텍스트/hit 오버레이.
 
 import { createModal } from './Modal.js';
-import { addText, FONT } from './theme.js';
+import { addText, FONT } from '../theme.js';
 import {
   getDiamonds,
   getSlotLevels, upgradeSlot, getUpgradeOdds,
   devResetPurchases,
-} from '../data/diamonds.js';
-import { gameSettings } from '../data/settings.js';
-import { SLOTS, SLOT_LABELS } from '../data/items.js';
-import { MAX_LEVEL, getNextLevelCost, getSlotEffect, getSlotMeta } from '../data/loadoutUpgrades.js';
+} from '../../data/meta/diamonds.js';
+import { gameSettings } from '../../data/settings.js';
+import { getMaterials } from '../../data/meta/materials.js';
+import { SLOTS, SLOT_LABELS } from '../../data/items.js';
+import { MAX_LEVEL, getNextLevelCost, getSlotEffect, getSlotMeta } from '../../data/meta/loadoutUpgrades.js';
 
 const COLOR_DIAMOND     = '#FFD166';
 const COLOR_TEXT_PRI    = '#E8E8E8';
@@ -23,7 +22,7 @@ const COLOR_TEXT_MUTED  = '#6A6A72';
 const COLOR_OWNED       = '#34D399';
 const COLOR_GOLD        = '#FFD166';
 
-// 영구 강화 데이터 — UI 제거됨 (도전과제 시스템으로 이행 예정). data/diamonds.js 에서 직접 참조하면 됨.
+// 영구 강화 데이터 — UI 제거됨 (도전과제 시스템으로 이행 예정). data/meta/diamonds.js 에서 직접 참조하면 됨.
 
 // 슬롯 강화 등급별 색 (Lv 1~10).
 const _lvColor = (lv) => {
@@ -49,7 +48,7 @@ const _fmt = (k, v) => {
   return `${v > 0 ? '+' : ''}${v.toFixed(2)}`;
 };
 
-export function showDiamondShop(scene, options = {}) {
+export function showUpgradeShop(scene, options = {}) {
   const fullscreen = options.fullscreen === true;
   const W = fullscreen ? scene.scale.width  : 880;
   const H = fullscreen ? scene.scale.height : 500;
@@ -79,11 +78,19 @@ export function showDiamondShop(scene, options = {}) {
   const balanceIcon = scene.add.image(balanceX - balanceTxt.width - 8, -modal.h / 2 + 32, 'icon-diamond')
     .setDisplaySize(72, 44).setOrigin(1, 0.5).setTint(0xFFD166);
   modal.container.add(balanceIcon);
+  // 각성석 / 초월석 보유 — 다이아 아래 한 줄 (★ N  ✦ N).
+  const matTxt = addText(scene, balanceX, -modal.h / 2 + 58, '', {
+    fontFamily: FONT, fontSize: '15px', color: '#C9A0FF', fontStyle: '900', letterSpacing: 1,
+  }).setOrigin(1, 0.5);
+  matTxt.setShadow(2, 2, '#000000', 3, false, true);
+  modal.container.add(matTxt);
   const refreshBalance = () => {
     balanceTxt.setText(`${getDiamonds().toLocaleString()}`);
-    // 아이콘 x 재정렬 (텍스트 폭 변화 반영).
     balanceIcon.setX(balanceX - balanceTxt.width - 8);
+    const mat = getMaterials();
+    matTxt.setText(`★ ${mat.awakenStone}    ✦ ${mat.transcendStone}`);
   };
+  refreshBalance();
 
   // === fullscreen 모드 — 모달 헤더 좌측에 나가기 링크 ===
   if (fullscreen) {
@@ -394,8 +401,8 @@ export function showDiamondShop(scene, options = {}) {
     if (!isMax) {
       const odds = getUpgradeOdds(slot);
       const pct = Math.round(odds.rate * 100);
-      const oddsStr = odds.pity ? `성공 확률 ${pct}% (천장 확정!)` : `성공 확률 ${pct}%`;
-      const oddsColor = odds.pity ? '#34D399' : (pct >= 80 ? '#FFE9B5' : pct >= 50 ? '#FFD166' : '#F87171');
+      const oddsStr = `성공 확률 ${pct}%`;
+      const oddsColor = pct >= 80 ? '#FFE9B5' : pct >= 50 ? '#FFD166' : pct >= 20 ? '#FF9F45' : '#F87171';
       const oddsFr = _frC(0.620, 0.745, 0.30, 0.05);
       const oddsTxt = addText(scene, oddsFr.cx, oddsFr.cy, oddsStr, {
         fontFamily: FONT, fontSize: '14px', color: oddsColor, fontStyle: '900',
@@ -462,14 +469,15 @@ export function showDiamondShop(scene, options = {}) {
           if (scene.events && scene.events.emit) scene.events.emit('toast', '❌ 다이아 부족');
           return;
         }
-        _showConfirmPurchase(`${SLOT_LABELS[slot] || slot} Lv ${lv + 1}`, cost, () => {
-          const res = upgradeSlot(slot);
-          if (res && res.ok) {
-            refreshBalance();
-            _flashUpgradeResult(btnFr.cx, btnFr.cy - btnFr.h, res.success);
-            _renderContent();
-          }
-        });
+        // 확인 다이얼로그 없이 즉시 강화.
+        const res = upgradeSlot(slot);
+        if (res && res.ok) {
+          // 성공/실패 텍스트 — 모루(중앙) 위에 표시.
+          const fxFr = _frC(0.620, 0.400, 0.30, 0.05);
+          refreshBalance();
+          _flashUpgradeResult(fxFr.cx, fxFr.cy, res.success);
+          _renderContent();
+        }
       });
       _addEl(hit);
     }

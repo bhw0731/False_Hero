@@ -11,8 +11,8 @@
 // 5×2 = 10장/페이지 페이지네이션 (showPickedCards 와 동일 카드 130×190).
 
 import { createModal } from './Modal.js';
-import { addText, FONT } from './theme.js';
-import { CARD_TIER_COLORS, displayCardName } from '../data/cards.js';
+import { addText, FONT } from '../theme.js';
+import { CARD_TIER_COLORS, displayCardName } from '../../data/cards.js';
 
 const COLOR_GOLD       = '#C5A059';
 const COLOR_TEXT_PRI   = '#E8E8E8';

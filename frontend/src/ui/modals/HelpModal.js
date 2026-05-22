@@ -4,9 +4,9 @@
 //   탭 전환 시 옛 컨텐츠 destroy + 시너지 listing 의 scene.events listener 정리.
 
 import { createModal } from './Modal.js';
-import { addText, FONT } from './theme.js';
-import { SIN_LIST, SIN_COLORS } from '../data/sins.js';
-import { synergyEffects } from '../data/synergyEffects.js';
+import { addText, FONT } from '../theme.js';
+import { SIN_LIST, SIN_COLORS } from '../../data/sins.js';
+import { synergyEffects } from '../../data/synergyEffects.js';
 
 const COLOR_GOLD = '#C5A059';
 const COLOR_TEXT = '#E8E8E8';

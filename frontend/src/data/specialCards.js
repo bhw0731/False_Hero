@@ -1,5 +1,5 @@
 // 특수 카드 — 가방 복원용 메타데이터 (id → 객체 매핑).
-// 매점 신규 컨텐츠는 ui/ShopModal.js 의 SHOP_POOL / data/diamondShopPool.js 에서 정의.
+// 매점 신규 컨텐츠는 ui/ShopModal.js 의 SHOP_POOL / data/meta/diamondShopPool.js 에서 정의.
 // 본 파일은 세이브 복원 (state.bag id 배열 → 객체 배열) 용 메타데이터만 보유.
 //
 // type 'passive': 자동 발동 (가방에서 직접 사용 불가, Player.takeDamage 가 사망 시 검사)

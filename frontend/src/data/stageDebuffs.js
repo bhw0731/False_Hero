@@ -1,5 +1,5 @@
 // 스테이지 디버프 — Phase G.
-// 옛 "보스 디버프" 시스템 (data/bosses.js 의 boss.debuff) 을 분리.
+// 옛 "보스 디버프" 시스템 (data/enemies/bosses.js 의 boss.debuff) 을 분리.
 // 16 디버프 풀에서 챕터 시작 시 10개 비복원 추첨 → chapterDebuffs[1..10].
 // 디버프는 보스 종류와 무관 — 그 스테이지에 묶임.
 //

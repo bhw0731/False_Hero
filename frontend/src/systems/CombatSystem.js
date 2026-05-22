@@ -7,9 +7,11 @@
 
 import Phaser from 'phaser';
 import { sound } from './SoundManager.js';
-import { addDiamonds } from '../data/diamonds.js';
+import { addDiamonds } from '../data/meta/diamonds.js';
 import { gameSettings } from '../data/settings.js';
-import { STAR_CHAPTER } from '../data/chapterStars.js';
+import { STAR_CHAPTER } from '../data/meta/chapterStars.js';
+import { awardBossMaterials } from '../data/meta/materials.js';
+import { DIFFICULTY_ORDER } from '../data/settings.js';
 
 // [Phase K] 이속 폐기 — engagementDelay 고정값 800ms (모든 엔티티 동일).
 const BASE_ENGAGEMENT_DELAY = 800;
@@ -472,7 +474,14 @@ export default class CombatSystem {
         this.player.runStats.bossesKilled += 1;
         // 보스 디버프 정리 (스탯 복원 + 배너 + 어둠 오버레이 + 분열 트리거)
         if (this.scene.bossDebuffSystem) this.scene.bossDebuffSystem.onBossDeath(enemy);
-        // [P-61] 보스 처치 다이아 보상 제거 — 도전과제 시스템으로 대체 예정.
+        // [P-66] 메인 보스 처치 → 각성석/초월석 드랍 (챕터 게이팅). 분열체 제외.
+        if (enemy._splitDepth === undefined) {
+          const chapterNum = DIFFICULTY_ORDER.indexOf(gameSettings.difficulty) + 1;
+          const dropped = awardBossMaterials(chapterNum);
+          dropped.forEach((d, idx) => {
+            this.showDamageText(enemy.x, enemy.y - 50 - idx * 24, `${d.label} +${d.amount}`, '#A855F7');
+          });
+        }
       } else if (enemy.type === 'subboss') {
         this.player.runStats.enemiesKilled += 1;
         // [P-61] 서브보스 다이아 보상 제거.

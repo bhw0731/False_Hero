@@ -2,7 +2,7 @@
 // 스테이지 1 기준 능력치. 실제 게임에선 stage / 난이도 배수가 곱해짐.
 
 import Phaser from 'phaser';
-import { enemyTypes } from '../data/enemies.js';
+import { enemyTypes } from '../data/enemies/enemies.js';
 import {
   getEnemyOverrides,
   setEnemyOverride,

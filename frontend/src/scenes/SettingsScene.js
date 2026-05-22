@@ -5,7 +5,7 @@ import Phaser from 'phaser';
 import { gameSettings, saveSettings } from '../data/settings.js';
 import { FONT, addText } from '../ui/theme.js';
 import { attachTouchFeedback } from '../ui/touchFeedback.js';
-import { addDiamonds } from '../data/diamonds.js';
+import { addDiamonds } from '../data/meta/diamonds.js';
 
 const COLOR_GOLD     = '#FFD166';
 const COLOR_BEIGE    = '#FFE9B5';

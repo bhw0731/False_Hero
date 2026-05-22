@@ -6,7 +6,7 @@
 // 둘 다 createModal 사용 X — _activeModal 충돌 회피 (매점/인벤토리 위에 떠야 함).
 // 자체 container + overlay + ESC 핸들러 직접 구현. depth 1500 (모달 위).
 
-import { addText, FONT, bindHover } from './theme.js';
+import { addText, FONT, bindHover } from '../theme.js';
 
 const DEPTH = 1500;
 const GOLD = 0xC5A059;

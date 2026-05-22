@@ -3,17 +3,17 @@
 // 우(인벤토리 조회, 320px): 4×3 그리드, 보유 항목 표시 (조회만, 클릭 사용 X).
 //
 // 골드 매점 풀 (14종, 가중치 합 9498) — 가중치 3종 추출.
-// 다이아 매점 풀 (3종) — 진입 시 1종 무작위 (data/diamondShopPool.js).
+// 다이아 매점 풀 (3종) — 진입 시 1종 무작위 (data/meta/diamondShopPool.js).
 //
 // 악마의 계약: HP 30% 이하 시 구매 차단 (apply 가 false 반환).
 
 import Phaser from 'phaser';
 import { createModal } from './Modal.js';
-import { gameSettings } from '../data/settings.js';
-import { sound } from '../systems/SoundManager.js';
-import { FONT, addText } from './theme.js';
-import { pickDiamondOffer, tryPayDiamonds } from '../data/diamondShopPool.js';
-import { getDiamonds } from '../data/diamonds.js';
+import { gameSettings } from '../../data/settings.js';
+import { sound } from '../../systems/SoundManager.js';
+import { FONT, addText } from '../theme.js';
+import { pickDiamondOffer, tryPayDiamonds } from '../../data/meta/diamondShopPool.js';
+import { getDiamonds } from '../../data/meta/diamonds.js';
 // [Phase P-39] 구매 확인 다이얼로그 + 인벤토리 사용/판매 액션 다이얼로그.
 import { showConfirmDialog, showActionDialog } from './ConfirmDialog.js';
 // [Bugfix] 매점 가방 안에서 등급업권/부적 같은 builtin-use 카드 디스패치 누락 fix.

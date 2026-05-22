@@ -8,9 +8,9 @@
 //   pauseGame: false (정보 조회용, 게임 흐름 보존).
 
 import { createModal } from './Modal.js';
-import { addText, FONT } from './theme.js';
-import { SIN_LIST, SIN_NAMES, SIN_ICONS, SIN_COLORS, SIN_KEY } from '../data/sins.js';
-import { getSynergyEffect } from '../data/synergyEffects.js';
+import { addText, FONT } from '../theme.js';
+import { SIN_LIST, SIN_NAMES, SIN_ICONS, SIN_COLORS, SIN_KEY } from '../../data/sins.js';
+import { getSynergyEffect } from '../../data/synergyEffects.js';
 
 const COLOR_GOLD     = '#C5A059';
 const COLOR_TEXT_PRI = '#E8E8E8';

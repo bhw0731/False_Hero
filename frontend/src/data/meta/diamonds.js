@@ -10,8 +10,8 @@
 //   startGold / startCard / startRevive  — 시작 보너스 토글
 //   slotLevels[slot]                     — 8 슬롯 강화 (Lv 0~10), data/loadoutUpgrades.js 참조
 
-import { gameSettings } from './settings.js';
-import { LEVEL_COSTS, MAX_LEVEL, getSuccessRate, PITY_THRESHOLD } from './loadoutUpgrades.js';
+import { gameSettings } from '../settings.js';
+import { LEVEL_COSTS, MAX_LEVEL, getSuccessRate } from './loadoutUpgrades.js';
 
 const DIAMOND_KEY = 'false-hero-diamonds';
 const DEV_DIAMONDS = 7777777;
@@ -147,18 +147,15 @@ export function getSlotFailStreak(slot) {
   return (_read().slotFails || {})[slot] || 0;
 }
 
-// [P-65] 다음 강화 정보 — UI 표시용 (성공률 / 천장 여부).
+// [P-65] 다음 강화 정보 — UI 표시용 (성공률). 천장 없음 (순수 확률).
 export function getUpgradeOdds(slot) {
   const state = _read();
   const curLv = (state.slotLevels || {})[slot] || 0;
   if (curLv >= MAX_LEVEL) return { rate: 0, isMax: true, pity: false, fails: 0 };
-  const fails = (state.slotFails || {})[slot] || 0;
-  const pity = fails >= PITY_THRESHOLD;
-  const rate = pity ? 1.0 : getSuccessRate(curLv);
-  return { rate, isMax: false, pity, fails };
+  return { rate: getSuccessRate(curLv), isMax: false, pity: false, fails: 0 };
 }
 
-// 한 단계 강화 시도 — [P-65] 확률 (A:소프트 + 천장).
+// 한 단계 강화 시도 — [P-65] 확률 (소프트, 천장 없음).
 //   반환: { ok, success, reason }.
 //     ok      — 시도 자체가 유효 (비용 충분 + 만렙 아님).
 //     success — 강화 성공 여부 (실패해도 레벨 유지, 다이아만 소모).
@@ -172,22 +169,12 @@ export function upgradeSlot(slot) {
   const isDev = !!(gameSettings && gameSettings.testMode);
   if (!isDev && state.total < cost) return { ok: false, success: false, reason: 'insufficient' };
 
-  // 비용 소모 (성공/실패 무관 — A 소프트).
+  // 비용 소모 (성공/실패 무관 — 소프트). 데브는 차감 X.
   if (!isDev) { state.total -= cost; state.spent += cost; }
 
-  // 성공 확률 — 천장(연속 실패 PITY_THRESHOLD) 도달 시 100%. 데브는 항상 성공.
-  const fails = (state.slotFails || {})[slot] || 0;
-  const rate = (fails >= PITY_THRESHOLD) ? 1.0 : getSuccessRate(curLv);
-  const success = isDev || (Math.random() < rate);
-
-  if (success) {
-    state.slotLevels[slot] = curLv + 1;
-    if (!state.slotFails) state.slotFails = { ...EMPTY_FAIL_STREAK };
-    state.slotFails[slot] = 0;   // 성공 시 천장 카운터 리셋.
-  } else {
-    if (!state.slotFails) state.slotFails = { ...EMPTY_FAIL_STREAK };
-    state.slotFails[slot] = fails + 1;
-  }
+  // 성공 확률 — 데브 모드여도 실제 확률 적용 (확률 체감 테스트용). 비용만 무제한.
+  const success = Math.random() < getSuccessRate(curLv);
+  if (success) state.slotLevels[slot] = curLv + 1;
   _write(state);
   return { ok: true, success, reason: null };
 }

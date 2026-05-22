@@ -52,6 +52,6 @@ export const SLOT_ICONS = {
   feet:      '👢',
 };
 
-// [Phase P-55] 개별 장비 아이템 시스템 폐기 — 슬롯 강화 (data/loadoutUpgrades.js) 로 대체.
+// [Phase P-55] 개별 장비 아이템 시스템 폐기 — 슬롯 강화 (data/meta/loadoutUpgrades.js) 로 대체.
 // items 배열은 옛 코드 호환용 빈 배열로 유지 (외부 import 가 깨지지 않게).
 export const items = [];

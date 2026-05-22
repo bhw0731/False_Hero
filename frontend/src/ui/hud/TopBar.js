@@ -6,9 +6,9 @@
 //
 // 외부 인터페이스: new TopBar(scene, callbacks) / updateAll(data) / destroy().
 
-import { FONT_PIXEL, addText, bindHover } from './theme.js';
-import { SIN_LIST, SIN_NAMES, SIN_ICONS, SIN_COLORS } from '../data/sins.js';
-import { isEquipmentUnlocked } from '../data/diamonds.js';
+import { FONT_PIXEL, addText, bindHover } from '../theme.js';
+import { SIN_LIST, SIN_NAMES, SIN_ICONS, SIN_COLORS } from '../../data/sins.js';
+import { isEquipmentUnlocked } from '../../data/meta/diamonds.js';
 const HUD_FONT = FONT_PIXEL;
 const ICON_BAR_DEPTH = 14;
 

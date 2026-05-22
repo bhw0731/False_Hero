@@ -1,7 +1,7 @@
 // 콤보 플로팅 라벨 — 플레이어 sprite 위 (월드 좌표).
 //   미니멀 디자인: 작은 텍스트 "×N" + 얇은 시간 바.
 
-import { addText, FONT } from './theme.js';
+import { addText, FONT } from '../theme.js';
 
 const Y_OFFSET = -78;
 const BAR_W = 50;

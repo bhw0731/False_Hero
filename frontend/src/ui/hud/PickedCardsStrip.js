@@ -9,9 +9,9 @@
 //   strip.refresh();   // 카드 픽 후
 //   strip.destroy();   // 씬 종료 시
 
-import { addText, FONT } from './theme.js';
-import { CARD_TIER_COLORS } from '../data/cards.js';
-import { SIN_COLORS, SIN_ICONS, SIN_KEY } from '../data/sins.js';
+import { addText, FONT } from '../theme.js';
+import { CARD_TIER_COLORS } from '../../data/cards.js';
+import { SIN_COLORS, SIN_ICONS, SIN_KEY } from '../../data/sins.js';
 
 const CARD_W = 28, CARD_H = 28, GAP = 4;
 const RIGHT_MARGIN = 16;

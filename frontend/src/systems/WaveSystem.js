@@ -8,14 +8,14 @@ import Enemy from '../entities/Enemy.js';
 import ShopNPC from '../entities/ShopNPC.js';
 import EventNode from '../entities/EventNode.js';
 import { getDifficultyMultiplier, getDifficultyDefenseMultiplier, unlockNextDifficulty, gameSettings } from '../data/settings.js';
-import { bossTypes } from '../data/bosses.js';
+import { bossTypes } from '../data/enemies/bosses.js';
 import { saveGame, clearSave, SAVE_KEY, PROGRESS_KEY } from '../data/save.js';
 import { pickChapterDebuffs, serializeChapterDebuffs, deserializeChapterDebuffs } from '../data/stageDebuffs.js';
 import { sound } from './SoundManager.js';
-import { pickRandomEnemy, pickRandomEnemyForSegment, getEnemyById } from '../data/enemies.js';
+import { pickRandomEnemy, pickRandomEnemyForSegment, getEnemyById } from '../data/enemies/enemies.js';
 import { FONT } from '../ui/theme.js';
-import { addDiamonds } from '../data/diamonds.js';
-import { STAR_CHAPTER, computeStars, recordStageStars, getTotalStars, getOpenableChests } from '../data/chapterStars.js';
+import { addDiamonds } from '../data/meta/diamonds.js';
+import { STAR_CHAPTER, computeStars, recordStageStars, getTotalStars, getOpenableChests } from '../data/meta/chapterStars.js';
 
 const CHAPTER_CLEAR_COUNT_KEY = 'falseHero.chapterClearCount';
 

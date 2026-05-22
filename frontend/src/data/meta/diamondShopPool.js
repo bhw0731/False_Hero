@@ -3,7 +3,7 @@
 // 1챕터부터 활성. 다이아 0이어도 탭/슬롯 노출 (살 수만 없음).
 
 import { spendDiamonds, getDiamonds } from './diamonds.js';
-import { gameSettings } from './settings.js';
+import { gameSettings } from '../settings.js';
 
 // type 종류:
 //   passive   — bag.push (사망 시 자동 발동, Player.takeDamage 가 처리)

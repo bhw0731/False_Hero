@@ -2,11 +2,11 @@
 
 import Phaser from 'phaser';
 import { FONT } from '../ui/theme.js';
-import { getDiamonds } from '../data/diamonds.js';
+import { getDiamonds } from '../data/meta/diamonds.js';
 import {
-  CHAPTERS, getCurrentChapter, getCurrentChapterIndex, getChapterProgress,
+  CHAPTERS, getCurrentChapter, getCurrentChapterIndex, getMaxChapterIndex, getChapterProgress,
   getChallengeProgress, claimReward, devSetState,
-} from '../data/challenges.js';
+} from '../data/meta/challenges.js';
 import { gameSettings } from '../data/settings.js';
 import { applyNearestToPixelTextures } from '../data/spriteOptions.js';
 import { attachTouchFeedback } from '../ui/touchFeedback.js';
@@ -35,7 +35,7 @@ export default class ChallengeScene extends Phaser.Scene {
   }
 
   preload() {
-    this.load.image('ui-challenges', 'sprites/menuui/challenges.png');
+    this.load.image('ui-challenges', 'sprites/screens/challenges.png');
     this.load.image('icon-diamond', 'sprites/icons/diamond-icon.png');
   }
 
@@ -111,17 +111,17 @@ export default class ChallengeScene extends Phaser.Scene {
       .setOrigin(0.5).setDepth(800).setInteractive({ useHandCursor: true });
     this._chapterRight.setShadow(2, 2, '#000000', 3, false, true);
     this._refreshChapterArrows = () => {
-      const curMax = getCurrentChapterIndex();   // 잠금 해제된 마지막 챕터 인덱스.
+      const curMax = getMaxChapterIndex();   // cleared 기준 — 수령 전에도 다음 챕터 이동 가능.
       const idx = this._selectedChapterIdx;
       // ◂: 이전 챕터가 있으면 활성.
       this._chapterLeft.setAlpha(idx > 0 ? 1 : 0.25);
       this._chapterLeft.input.enabled = (idx > 0);
-      // ▸: 잠금 해제된 다음 챕터가 있으면 활성.
+      // ▸: 클리어한 다음 챕터가 있으면 활성.
       this._chapterRight.setAlpha(idx < curMax ? 1 : 0.25);
       this._chapterRight.input.enabled = (idx < curMax);
     };
     const _switchChapter = (dir) => {
-      const curMax = getCurrentChapterIndex();
+      const curMax = getMaxChapterIndex();
       const next = this._selectedChapterIdx + dir;
       if (next < 0 || next > curMax) return;
       this._selectedChapterIdx = next;
@@ -203,8 +203,8 @@ export default class ChallengeScene extends Phaser.Scene {
         lblTxt.setShadow(2, 2, '#000000', 3, false, true);
         const rewardIcon = this.add.image(startX + lblTxt.width + ICON_GAP + ICON_W / 2, rewardY, 'icon-diamond')
           .setDisplaySize(ICON_W, ICON_H).setOrigin(0.5).setDepth(50);
-        // 다이아 PNG 차가운 시안 → 황금 톤 tint (배경/라벨과 톤 통일).
-        rewardIcon.setTint(claimed ? 0x7A7A82 : 0xFFD166);
+        // 다이아 PNG → 황금 톤 tint (상태 무관 동일 색). 완료 시 dim 만 (hue 유지).
+        rewardIcon.setTint(0xFFD166).setAlpha(claimed ? 0.45 : 1);
         valTxt.setVisible(true).setPosition(startX + lblTxt.width + ICON_GAP + ICON_W + ICON_GAP, rewardY).setDepth(50);
         valTxt.setShadow(2, 2, '#000000', 3, false, true);
         this._cardEls.push(lblTxt, rewardIcon, valTxt);

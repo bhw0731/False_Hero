@@ -6,7 +6,7 @@
 //   const panel = new PotionSlotPanel(scene);  // 매 프레임 자동 갱신
 //   panel.destroy();                            // GameScene 종료 시.
 
-import { addText, FONT } from './theme.js';
+import { addText, FONT } from '../theme.js';
 
 const R         = 44;               // 원 반지름 — 크게 키움
 const DEPTH     = 12;

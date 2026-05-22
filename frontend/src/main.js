@@ -9,7 +9,7 @@ import MenuScene from './scenes/MenuScene.js';
 import StageScene from './scenes/StageScene.js';
 import GameScene from './scenes/GameScene.js';
 import SettingsScene from './scenes/SettingsScene.js';
-import DiamondShopScene from './scenes/DiamondShopScene.js';
+import UpgradeShopScene from './scenes/UpgradeShopScene.js';
 import ChallengeScene from './scenes/ChallengeScene.js';
 import AdminScene from './scenes/AdminScene.js';
 import BossEditScene from './scenes/BossEditScene.js';
@@ -61,7 +61,7 @@ const config = {
       debug: false,
     },
   },
-  scene: [StudioIntroScene, SplashScene, MenuScene, StageScene, GameScene, SettingsScene, DiamondShopScene, ChallengeScene, AdminScene, BossEditScene, EnemyEditScene],
+  scene: [StudioIntroScene, SplashScene, MenuScene, StageScene, GameScene, SettingsScene, UpgradeShopScene, ChallengeScene, AdminScene, BossEditScene, EnemyEditScene],
 };
 
 // [Phase P-44 후속] _cleanupLeftovers 제거 — 새 페이지 reload 후 잔재 X (자연 소멸).

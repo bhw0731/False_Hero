@@ -7,10 +7,10 @@
 
 import Phaser from 'phaser';
 import { createModal } from './Modal.js';
-import { makeGlassBtn } from './glassBtn.js';
-import { gameSettings, saveSettings } from '../data/settings.js';
-import { sound } from '../systems/SoundManager.js';
-import { FONT, addText } from './theme.js';
+import { makeGlassBtn } from '../glassBtn.js';
+import { gameSettings, saveSettings } from '../../data/settings.js';
+import { sound } from '../../systems/SoundManager.js';
+import { FONT, addText } from '../theme.js';
 
 const COLOR_GOLD       = '#C5A059';
 const COLOR_TEXT_PRI   = '#E8E8E8';

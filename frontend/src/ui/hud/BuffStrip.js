@@ -9,7 +9,7 @@
 //
 // 성능: panel + per-row bar Graphics 를 재사용 (clear + redraw). 텍스트도 동일 갯수면 setText.
 
-import { addText, FONT } from './theme.js';
+import { addText, FONT } from '../theme.js';
 
 const DEPTH = 11;
 const LEFT_X = 10;

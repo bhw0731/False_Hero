@@ -7,15 +7,15 @@
 // 모달 간 호출 (showCardSelection → showShop) 은 scene.showShop() 으로 위임 — GameScene wrapper 필요.
 
 import { createModal } from './Modal.js';
-import { makeGlassBtn } from './glassBtn.js';
-import { gameSettings } from '../data/settings.js';
-import { sound } from '../systems/SoundManager.js';
-import { commonCards, CARD_TIER_COLORS, getRarityWeights, pickRarity, displayCardName } from '../data/cards.js';
-import { omnipotentCard } from '../data/cards/omnipotentCard.js';
-import { SIN_LIST, SIN_NAMES, SIN_COLORS } from '../data/sins.js';
-import { SLOTS } from '../data/items.js';
-import { PASSIVES } from '../data/passives.js';
-import { FONT, addText } from './theme.js';
+import { makeGlassBtn } from '../glassBtn.js';
+import { gameSettings } from '../../data/settings.js';
+import { sound } from '../../systems/SoundManager.js';
+import { commonCards, CARD_TIER_COLORS, getRarityWeights, pickRarity, displayCardName } from '../../data/cards.js';
+import { omnipotentCard } from '../../data/cards/omnipotentCard.js';
+import { SIN_LIST, SIN_NAMES, SIN_COLORS } from '../../data/sins.js';
+import { SLOTS } from '../../data/items.js';
+import { PASSIVES } from '../../data/passives.js';
+import { FONT, addText } from '../theme.js';
 import { showConfirmDialog } from './ConfirmDialog.js';
 import { hasBuiltinUse, useBuiltin } from './InventoryModal.js';
 

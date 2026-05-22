@@ -5,7 +5,7 @@
 //   근접(100)  11종: 나머지 모두 (LATE 5종 포함)
 
 import Phaser from 'phaser';
-import { getEnemyOverrides } from './adminConfig.js';
+import { getEnemyOverrides } from '../adminConfig.js';
 
 export const enemyTypes = [
   // 1. 슬라임 — 약하고 균형잡힌 표준

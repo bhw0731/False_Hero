@@ -10,9 +10,9 @@
 // pauseGame: false — 가방은 게임 중 즉시 열어 사용 (기존 showBag 패턴 유지).
 
 import { createModal } from './Modal.js';
-import { addText, FONT } from './theme.js';
+import { addText, FONT } from '../theme.js';
 import { showCardPicker } from './CardPickerModal.js';
-import { commonCards, displayCardName } from '../data/cards.js';
+import { commonCards, displayCardName } from '../../data/cards.js';
 import { showConfirmDialog, showActionDialog } from './ConfirmDialog.js';
 
 // 판매 whitelist (구매가 × 60%, Math.floor).

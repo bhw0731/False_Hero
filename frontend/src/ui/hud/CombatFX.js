@@ -6,12 +6,12 @@
 // 모든 함수는 `scene` 인자(GameScene 인스턴스)를 받음. scene 의 상태 플래그(bossIntroActive,
 // gameOverActive)와 게임 시스템(player, waveSystem) 을 직접 읽고 씀.
 
-import { sound } from '../systems/SoundManager.js';
-import { clearSave } from '../data/save.js';
-import { getDiamonds } from '../data/diamonds.js';
-import { SLOTS } from '../data/items.js';
-import { makeGlassBtn } from './glassBtn.js';
-import { FONT, FONT_DISP, addText } from './theme.js';
+import { sound } from '../../systems/SoundManager.js';
+import { clearSave } from '../../data/save.js';
+import { getDiamonds } from '../../data/meta/diamonds.js';
+import { SLOTS } from '../../data/items.js';
+import { makeGlassBtn } from '../glassBtn.js';
+import { FONT, FONT_DISP, addText } from '../theme.js';
 
 // 게임오버/클리어 거대 텍스트 — Pretendard 굵은 weight (Bold) 로 임팩트 확보
 const FONT_BIG  = FONT;
