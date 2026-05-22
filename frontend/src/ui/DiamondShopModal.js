@@ -16,7 +16,7 @@ import { gameSettings } from '../data/settings.js';
 import { SLOTS, SLOT_LABELS } from '../data/items.js';
 import { MAX_LEVEL, getNextLevelCost, getSlotEffect, getSlotMeta } from '../data/loadoutUpgrades.js';
 
-const COLOR_DIAMOND     = '#6AD8FF';
+const COLOR_DIAMOND     = '#FFD166';
 const COLOR_TEXT_PRI    = '#E8E8E8';
 const COLOR_TEXT_2ND    = '#9A9AA2';
 const COLOR_TEXT_MUTED  = '#6A6A72';
@@ -77,7 +77,7 @@ export function showDiamondShop(scene, options = {}) {
   modal.container.add(balanceTxt);
   // 다이아 아이콘 — 숫자 텍스트 좌측에 위치.
   const balanceIcon = scene.add.image(balanceX - balanceTxt.width - 8, -modal.h / 2 + 32, 'icon-diamond')
-    .setDisplaySize(72, 44).setOrigin(1, 0.5);
+    .setDisplaySize(72, 44).setOrigin(1, 0.5).setTint(0xFFD166);
   modal.container.add(balanceIcon);
   const refreshBalance = () => {
     balanceTxt.setText(`${getDiamonds().toLocaleString()}`);
@@ -246,7 +246,7 @@ export function showDiamondShop(scene, options = {}) {
 
       if (isSel) {
         // 슬롯별 노란 박스 y 미세 보정.
-        const HL_DY = [-1, 1, 0, 0, 0, 1, 1, 0];
+        const HL_DY = [-1, 0.5, 0, 0, 0.5, 0.5, 0, 0];
         const hlDy = HL_DY[i] || 0;
         // ▶ 마커 제거 → 좌측 inset 만큼 박스 폭 축소.
         const HL_LEFT_INSET = 28;
@@ -403,7 +403,7 @@ export function showDiamondShop(scene, options = {}) {
       _addEl(txtL);
       // 다이아 아이콘
       const btnIcon = scene.add.image(startX2 + labelWidth + ICON_GAP_L + ICON_S / 2, btnFr.cy, 'icon-diamond')
-        .setDisplaySize(ICON_S, ICON_S * 0.62).setOrigin(0.5);
+        .setDisplaySize(ICON_S, ICON_S * 0.62).setOrigin(0.5).setTint(0xFFD166);
       _addEl(btnIcon);
       // 비용 텍스트
       const txtR = addText(scene, startX2 + labelWidth + ICON_GAP_L + ICON_S + ICON_GAP_R, btnFr.cy, `${cost}`, {

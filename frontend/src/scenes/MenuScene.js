@@ -155,11 +155,11 @@ export default class MenuScene extends Phaser.Scene {
 
     // 다이아 잔액 — 우상단 (픽셀 아이콘 + 숫자).
     this._diamondTxt = this.add.text(W - 18, 32, `${getDiamonds().toLocaleString()}`, {
-      fontFamily: FONT, fontSize: '25px', color: '#6AD8FF', fontStyle: '700',
+      fontFamily: FONT, fontSize: '25px', color: '#FFD166', fontStyle: '700',
     }).setOrigin(1, 0.5).setDepth(900);
     this._diamondTxt.setShadow(0, 1, '#000000', 4, false, true);
     this._diamondIcon = this.add.image(W - 18 - this._diamondTxt.width - 8, 32, 'icon-diamond')
-      .setDisplaySize(72, 44).setOrigin(1, 0.5).setDepth(900);
+      .setDisplaySize(72, 44).setOrigin(1, 0.5).setDepth(900).setTint(0xFFD166);
 
     // 푸터 — 우측 하단 구석, 읽을 수 있을 정도
     this.add.text(W * 0.97, H * 0.97, 'v0.1', {

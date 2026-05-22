@@ -12,7 +12,7 @@ import { applyNearestToPixelTextures } from '../data/spriteOptions.js';
 import { attachTouchFeedback } from '../ui/touchFeedback.js';
 
 const COLOR_GOLD     = '#FFD166';
-const COLOR_DIAMOND  = '#6AD8FF';
+const COLOR_DIAMOND  = '#FFD166';
 
 // 진행바 — 0% 시에도 베이스 가시.
 function drawProgressBar(scene, x, y, w, h, ratio, depth = 500, fillHex = 0xD4A942) {
@@ -75,7 +75,7 @@ export default class ChallengeScene extends Phaser.Scene {
     }).setOrigin(1, 0.5).setDepth(900);
     this._diaTxt.setShadow(2, 2, '#000000', 3, false, true);
     this._diaIcon = this.add.image(W - 20 - this._diaTxt.width - 10, 32, 'icon-diamond')
-      .setDisplaySize(72, 44).setOrigin(1, 0.5).setDepth(900);
+      .setDisplaySize(72, 44).setOrigin(1, 0.5).setDepth(900).setTint(0xFFD166);
     this._refreshDia = () => {
       this._diaTxt.setText(`${getDiamonds().toLocaleString()}`);
       this._diaIcon.setX(W - 20 - this._diaTxt.width - 10);
@@ -184,13 +184,30 @@ export default class ChallengeScene extends Phaser.Scene {
         descTxt.setShadow(2, 2, '#000000', 4, false, true);
         this._cardEls.push(descTxt);
 
-        // 보상 — 💎 N.
-        const rewardTxt = this.add.text(fr.cx, fr.cy + fr.h * 0.14, `보상: 💎 ${c.reward}`, {
-          fontFamily: FONT, fontSize: '14px',
-          color: claimed ? '#7A7A82' : COLOR_DIAMOND, fontStyle: '900',
-        }).setOrigin(0.5).setDepth(50);
-        rewardTxt.setShadow(2, 2, '#000000', 3, false, true);
-        this._cardEls.push(rewardTxt);
+        // 보상 — 라벨 + 다이아 아이콘 (황금 tint) + 수치 — 다크판타지 황금 톤 통일.
+        const rewardY = fr.cy + fr.h * 0.14;
+        const ICON_W = 56, ICON_H = 34, ICON_GAP = 8;
+        const lblColor = claimed ? '#7A7A82' : '#FFE9B5';
+        const valColor = claimed ? '#7A7A82' : '#FFE9B5';
+        const lblTxt = this.add.text(0, 0, '보상', {
+          fontFamily: FONT, fontSize: '20px',
+          color: lblColor, fontStyle: '900', letterSpacing: 1,
+        }).setOrigin(0, 0.5).setVisible(false);
+        const valTxt = this.add.text(0, 0, `${c.reward}`, {
+          fontFamily: FONT, fontSize: '22px',
+          color: valColor, fontStyle: '900', letterSpacing: 1,
+        }).setOrigin(0, 0.5).setVisible(false);
+        const totalW = lblTxt.width + ICON_GAP + ICON_W + ICON_GAP + valTxt.width;
+        const startX = fr.cx - totalW / 2;
+        lblTxt.setVisible(true).setPosition(startX, rewardY).setDepth(50);
+        lblTxt.setShadow(2, 2, '#000000', 3, false, true);
+        const rewardIcon = this.add.image(startX + lblTxt.width + ICON_GAP + ICON_W / 2, rewardY, 'icon-diamond')
+          .setDisplaySize(ICON_W, ICON_H).setOrigin(0.5).setDepth(50);
+        // 다이아 PNG 차가운 시안 → 황금 톤 tint (배경/라벨과 톤 통일).
+        rewardIcon.setTint(claimed ? 0x7A7A82 : 0xFFD166);
+        valTxt.setVisible(true).setPosition(startX + lblTxt.width + ICON_GAP + ICON_W + ICON_GAP, rewardY).setDepth(50);
+        valTxt.setShadow(2, 2, '#000000', 3, false, true);
+        this._cardEls.push(lblTxt, rewardIcon, valTxt);
 
         // === 카드 안 — 진행도 정보 (텍스트 + 진행바). 클릭 X. ===
         // 카드별 내부 텍스트/바 x 미세 보정.
@@ -284,7 +301,7 @@ export default class ChallengeScene extends Phaser.Scene {
               this._redrawOverallBar();
               this._renderCards();
               this._refreshChapterArrows && this._refreshChapterArrows();
-              if (this.events && this.events.emit) this.events.emit('toast', `💎 보상 +${c.reward}`);
+              if (this.events && this.events.emit) this.events.emit('toast', `다이아 +${c.reward}`);
             }
           });
           this._cardEls.push(hit);

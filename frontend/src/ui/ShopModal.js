@@ -75,7 +75,7 @@ function _shopInvAction(scene, card) {
           scene.player.stats.gold = (scene.player.stats.gold || 0) + sellPrice;
           const idx = scene.player.bag.indexOf(card);
           if (idx !== -1) scene.player.bag.splice(idx, 1);
-          if (scene.events && scene.events.emit) scene.events.emit('toast', `🪙 +${sellPrice} 골드`);
+          if (scene.events && scene.events.emit) scene.events.emit('toast', `골드 +${sellPrice}`);
           if (typeof renderShop === 'function') renderShop(scene);
         },
       });

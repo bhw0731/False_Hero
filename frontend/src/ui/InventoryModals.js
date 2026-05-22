@@ -553,12 +553,20 @@ export function showPurchasedItems(scene) {
     }).setOrigin(0, 0);
     detailContainer.add(descTxt);
 
-    // 가격 (우상단)
+    // 가격 (우상단) — 골드 아이콘 + 숫자.
     if (item.price) {
-      const priceTxt = addText(scene, DETAIL_W / 2 - 14, -DETAIL_H / 2 + 12, `🪙 ${item.price}`, {
+      const priceTxt = addText(scene, DETAIL_W / 2 - 14, -DETAIL_H / 2 + 12, `${item.price}`, {
         fontFamily: FONT, fontSize: '15px', color: COLOR_GOLD, fontStyle: '700',
       }).setOrigin(1, 0);
       detailContainer.add(priceTxt);
+      if (scene.textures.exists('icon-gold')) {
+        const priceIcon = scene.add.image(
+          DETAIL_W / 2 - 14 - priceTxt.width - 6,
+          -DETAIL_H / 2 + 12 + 8,
+          'icon-gold'
+        ).setDisplaySize(20, 14).setOrigin(1, 0.5);
+        detailContainer.add(priceIcon);
+      }
     }
 
     detailContainer.setVisible(true);

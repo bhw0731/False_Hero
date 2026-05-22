@@ -162,34 +162,43 @@ export default class StageScene extends Phaser.Scene {
       this._rightArrow.on('pointerdown', () => this._switchDifficulty(1));
     }
 
-    // === 챕터 라벨 — 좌상단 (◀ 라벨 (N/10) ▶) — 양피지 잉크 톤, 외곽선 X ===
-    this._chapterLeftArrow = this.add.text(20, 38, '◀', {
-      fontFamily: FONT, fontSize: '24px', color: '#6b4423', fontStyle: '900',
-    }).setOrigin(0, 0.5).setAlpha(0.3).setDepth(900).setVisible(false);
-    // 메인 라벨 — 어두운 다크브라운 (양피지 위 자연스럽게 녹아듦).
-    this._labelText = this.add.text(20, 38, '', {
-      fontFamily: FONT, fontSize: '30px', color: '#3d1f0a',
+    // === 챕터 라벨 — 좌상단 (◀ 1챕터 (N/10) ▶) — 클릭으로 챕터 전환 ===
+    // 메인 라벨 — 어두운 다크브라운 + 베이지 stroke (양피지 위 가독성 강화).
+    this._labelText = this.add.text(54, 38, '', {
+      fontFamily: FONT, fontSize: '28px', color: '#1a0f08',
       fontStyle: '900', letterSpacing: 2,
     }).setOrigin(0, 0.5).setDepth(900);
+    this._labelText.setShadow(1, 1, '#e8d4a8', 3, false, true);
     if (this._labelText.updateText) this._labelText.updateText();
-    // 진행도 — 라벨 옆 중간 갈색 (서브 위계).
-    this._progressText = this.add.text(0, 38, '', {
-      fontFamily: FONT, fontSize: '20px', color: '#6b4423',
+    // 진행도 — 고정 위치 (라벨 width 변경 영향 X).
+    this._progressText = this.add.text(140, 38, '', {
+      fontFamily: FONT, fontSize: '18px', color: '#3d1f0a',
       fontStyle: '700',
     }).setOrigin(0, 0.5).setDepth(900);
-    this._chapterRightArrow = this.add.text(0, 38, '▶', {
-      fontFamily: FONT, fontSize: '24px', color: '#6b4423', fontStyle: '900',
-    }).setOrigin(0, 0.5).setAlpha(0.3).setDepth(900).setVisible(false);
+    this._progressText.setShadow(1, 1, '#e8d4a8', 2, false, true);
+    // 좌/우 화살표 — 라벨 양 옆에 배치, 클릭 시 챕터 전환.
+    this._chapterLeftArrow = this.add.text(20, 38, '◀', {
+      fontFamily: FONT, fontSize: '20px', color: '#1a0f08', fontStyle: '700',
+    }).setOrigin(0.5, 0.5).setDepth(900).setInteractive({ useHandCursor: true });
+    this._chapterLeftArrow.setShadow(1, 1, '#e8d4a8', 2, false, true);
+    this._chapterLeftArrow.on('pointerdown',      () => this._chapterLeftArrow.setColor('#8b6914'));
+    this._chapterLeftArrow.on('pointerupoutside', () => this._chapterLeftArrow.setColor('#1a0f08'));
+    this._chapterLeftArrow.on('pointerup',        () => { this._chapterLeftArrow.setColor('#1a0f08'); this._switchDifficulty(-1); });
+    this._chapterRightArrow = this.add.text(225, 38, '▶', {
+      fontFamily: FONT, fontSize: '20px', color: '#1a0f08', fontStyle: '700',
+    }).setOrigin(0.5, 0.5).setDepth(900).setInteractive({ useHandCursor: true });
+    this._chapterRightArrow.setShadow(1, 1, '#e8d4a8', 2, false, true);
+    this._chapterRightArrow.on('pointerdown',      () => this._chapterRightArrow.setColor('#8b6914'));
+    this._chapterRightArrow.on('pointerupoutside', () => this._chapterRightArrow.setColor('#1a0f08'));
+    this._chapterRightArrow.on('pointerup',        () => { this._chapterRightArrow.setColor('#1a0f08'); this._switchDifficulty(1); });
     // 위치 (라벨 우측 끝 + 8) 은 라벨 setText 후 결정 — _refreshDifficultyView 에서 갱신.
 
+    // _indicatorText — 챕터 라벨 + 좌우 화살표와 정보 중복되어 숨김 처리.
     this._indicatorText = this.add.text(20, 60, '', {
       fontFamily: FONT, fontSize: '15px', color: COL_DIM,
       fontStyle: '500', letterSpacing: 2,
-    }).setOrigin(0, 0).setDepth(900);
-    if (this._indicatorText.updateText) this._indicatorText.updateText();
-    // 챕터 1개일 땐 인디케이터 숨김. 2개 이상 (데브 모드 시) 일 때만 노출.
+    }).setOrigin(0, 0).setDepth(900).setVisible(false);
     const chapters = getAvailableChapters();
-    this._indicatorText.setVisible(chapters.length > 1);
 
     // === 초기 난이도 결정 ===
     this.currentDifficultyIndex = this._loadLastDifficulty();
@@ -255,19 +264,26 @@ export default class StageScene extends Phaser.Scene {
     for (let s = 1; s <= 10; s++) if (progressMap[s]) clearedCount++;
     const label = (difficultyLabels[diff] || diff);
     this._labelText.setText(label);
-    this._labelText.setColor(isUnlocked ? '#3d1f0a' : COL_DISABLED);
+    this._labelText.setColor(isUnlocked ? '#1a0f08' : COL_DISABLED);
     this._labelText.setAlpha(isUnlocked ? 1 : 0.6);
-    // 진행도 — 라벨 우측 + 8 위치, 중간 갈색.
+    // 진행도 — 고정 위치 유지 (x=140 으로 초기화됨), 텍스트만 갱신.
     if (this._progressText) {
       this._progressText.setText(`(${clearedCount}/10)`);
-      this._progressText.setX(this._labelText.x + this._labelText.width + 8);
-      this._progressText.setColor(isUnlocked ? '#6b4423' : COL_DISABLED);
+      this._progressText.setColor(isUnlocked ? '#3d1f0a' : COL_DISABLED);
       this._progressText.setAlpha(isUnlocked ? 1 : 0.6);
     }
     this._indicatorText.setText(`${this.currentDifficultyIndex + 1} / ${chapters.length}`);
-    // 우측 ▶ 화살표 위치 — 진행도 우측 끝 + 8.
-    if (this._chapterRightArrow && this._progressText) {
-      this._chapterRightArrow.setX(this._progressText.x + this._progressText.width + 8);
+    // 우측 ▶ 화살표 — 고정 위치 (x=225 으로 초기화됨).
+    // 화살표 활성/비활성 — 이동 가능 챕터 있을 때만 active.
+    if (this._chapterLeftArrow) {
+      const canLeft = this.currentDifficultyIndex > 0;
+      this._chapterLeftArrow.setAlpha(canLeft ? 1 : 0.25);
+      if (this._chapterLeftArrow.input) this._chapterLeftArrow.input.enabled = canLeft;
+    }
+    if (this._chapterRightArrow) {
+      const canRight = this.currentDifficultyIndex < chapters.length - 1;
+      this._chapterRightArrow.setAlpha(canRight ? 1 : 0.25);
+      if (this._chapterRightArrow.input) this._chapterRightArrow.input.enabled = canRight;
     }
 
     // 노드 라인
@@ -628,9 +644,10 @@ export default class StageScene extends Phaser.Scene {
     const hoverColor = '#8b6914';  // 호버 시 다크 골드
     const isLeft = (originX === 0);
     const txt = this.add.text(x, y, label, {
-      fontFamily: FONT, fontSize: '20px',
+      fontFamily: FONT, fontSize: '19px',
       color: baseColor, fontStyle: '900', letterSpacing: 1,
     }).setOrigin(originX, 0.5).setDepth(900);
+    txt.setShadow(1, 1, '#e8d4a8', 3, false, true);
 
     const realMarkerChar = isLeft ? '›' : '‹';
     const marker = this.add.text(

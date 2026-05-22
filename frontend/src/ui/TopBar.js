@@ -138,12 +138,20 @@ class TopBar {
     }).setOrigin(0, 0.5).setDepth(this._hudDepth + 2).setScrollFactor(0);
     this.expValText.setShadow(1, 1, '#000000', 2, false, true);
 
-    this.goldText = addText(scene, ROW_LX, ROW_Y[2], '🪙 0', {
+    // 골드 — 아이콘 (PNG) + 숫자.
+    const _GOLD_ICON_W = 24, _GOLD_ICON_H = 16, _GOLD_ICON_GAP = 4;
+    this.goldIcon = scene.textures.exists('icon-gold')
+      ? scene.add.image(ROW_LX + _GOLD_ICON_W / 2, ROW_Y[2], 'icon-gold')
+          .setDisplaySize(_GOLD_ICON_W, _GOLD_ICON_H).setOrigin(0.5)
+          .setDepth(this._hudDepth + 2).setScrollFactor(0)
+      : null;
+    this.goldText = addText(scene, ROW_LX + _GOLD_ICON_W + _GOLD_ICON_GAP, ROW_Y[2], '0', {
       fontFamily: HUD_FONT, fontSize: '19px', color: HX.goldBright, fontStyle: '700',
     }).setOrigin(0, 0.5).setDepth(this._hudDepth + 2).setScrollFactor(0);
     this.goldText.setShadow(1, 1, '#000000', 2, false, true);
 
     this._leftTopEls = [hudG, this.lvText, this.expValText, this.goldText];
+    if (this.goldIcon) this._leftTopEls.push(this.goldIcon);
   }
 
   // === 좌상단 아래 박스 (280×320, 10 스탯 + 시너지 강화) ===
@@ -534,7 +542,7 @@ class TopBar {
       this._setProgressBar(this.expBar, s.exp / s.expToNext, '');
       if (this.expValText) this.expValText.setText(`${s.exp}/${s.expToNext}`);
     }
-    if (this.goldText) this.goldText.setText(`🪙 ${s.gold || 0}`);
+    if (this.goldText) this.goldText.setText(`${s.gold || 0}`);
 
     // Phase E6 — source 분리 표시 (main: base / eq: equipment / cs: cards+synergy)
     // [Phase P-44e] main 좌측 정렬 (VAL_LX) + eq/cs 우측 정렬 (DELTA_RIGHT 부터 좌측 시프트).

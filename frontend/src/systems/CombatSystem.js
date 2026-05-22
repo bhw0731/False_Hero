@@ -213,10 +213,10 @@ export default class CombatSystem {
     // [Phase P-50b] 다이아 토스트 — 화면 고정.
     const toast = this.scene.add.text(cx, 90, `다이아 +${amount}`, {
       fontFamily: '"Pretendard Variable","Pretendard",sans-serif',
-      fontSize: '30px', color: '#6AD8FF', fontStyle: '800',
+      fontSize: '30px', color: '#FFD166', fontStyle: '800',
       stroke: '#000000', strokeThickness: 3,
     }).setOrigin(0.5).setDepth(900).setScrollFactor(0);
-    toast.setShadow(0, 0, '#6AD8FF', 12, true, true);
+    toast.setShadow(0, 0, '#FFD166', 12, true, true);
     this.scene.tweens.add({
       targets: toast, y: 60, alpha: 0, duration: 1000, ease: 'Cubic.easeOut',
       onComplete: () => toast.destroy(),

@@ -4,15 +4,15 @@
 // 영구 진행 — 다이아 상점에서 강화 (data/diamonds.js 의 slotLevels 사용).
 // 게임 진입 시 각 슬롯 레벨에 해당하는 effect 가 Player stats 에 누적 적용.
 //
-// 메인 stat / 보조 stat 비전 (8 슬롯 × 10 레벨):
-//   투구       maxHp          → 5렙 부터 critChance
-//   악세서리   goldGainMul    → 5렙 부터 critDamage
-//   갑옷       maxHp          → 5렙 부터 damageReduction
-//   방패       damageReduction→ 5렙 부터 dodge
-//   무기       attackPower    → 5렙 부터 critDamage
-//   장갑       attackSpeed    → 5렙 부터 accuracy   (attackSpeed 음수 = 빠름)
-//   각반       dodge          → 5렙 부터 attackSpeed
-//   신발       accuracy       → 5렙 부터 dodge
+// 메인 / 보조 — 부위별 컨셉에 어울리게 디벨롭 (방어/유틸/공격/기동).
+//   투구       maxHp           → 5렙 부터 damageReduction   (머리 보호)
+//   악세서리   goldGainMul     → 5렙 부터 lifesteal         (마법 유틸)
+//   갑옷       maxHp           → 5렙 부터 damageReduction   (몸통 본 방어)
+//   방패       damageReduction → 5렙 부터 maxHp             (막아내고 체력 ↑)
+//   무기       attackPower     → 5렙 부터 critDamage        (강한 일격)
+//   장갑       attackSpeed     → 5렙 부터 critChance        (빠른 손 + 정확한 타격, attackSpeed 음수=빠름)
+//   각반       dodge           → 5렙 부터 damageReduction   (다리로 회피 + 보호)
+//   신발       accuracy        → 5렙 부터 attackSpeed       (정확 + 빠른 행동)
 
 export const MAX_LEVEL = 10;
 
@@ -38,43 +38,43 @@ export const LEVEL_COSTS = [
 const SLOT_TIERS = {
   head: {
     label: '투구',
-    main: { stat: 'maxHp',           perLevel: 8   },
-    secondary: { stat: 'critChance', perLevel: 0.005, threshold: 5 },
+    main:      { stat: 'maxHp',           perLevel: 8     },
+    secondary: { stat: 'damageReduction', perLevel: 0.010, threshold: 5 },
   },
   accessory: {
     label: '악세서리',
-    main: { stat: 'goldGainMul',     perLevel: 0.03 },
-    secondary: { stat: 'critDamage', perLevel: 0.03,  threshold: 5 },
+    main:      { stat: 'goldGainMul',     perLevel: 0.03  },
+    secondary: { stat: 'lifesteal',       perLevel: 0.008, threshold: 5 },
   },
   body: {
     label: '갑옷',
-    main: { stat: 'maxHp',                perLevel: 12  },
+    main:      { stat: 'maxHp',           perLevel: 12    },
     secondary: { stat: 'damageReduction', perLevel: 0.015, threshold: 5 },
   },
   shield: {
     label: '방패',
-    main: { stat: 'damageReduction', perLevel: 0.02 },
-    secondary: { stat: 'dodge',      perLevel: 0.01,  threshold: 5 },
+    main:      { stat: 'damageReduction', perLevel: 0.02  },
+    secondary: { stat: 'maxHp',           perLevel: 6,     threshold: 5 },
   },
   hands: {
     label: '무기',
-    main: { stat: 'attackPower',     perLevel: 2   },
-    secondary: { stat: 'critDamage', perLevel: 0.04, threshold: 5 },
+    main:      { stat: 'attackPower',     perLevel: 2     },
+    secondary: { stat: 'critDamage',      perLevel: 0.04,  threshold: 5 },
   },
   arms: {
     label: '장갑',
-    main: { stat: 'attackSpeed',     perLevel: -20 },   // 음수 = 빠름
-    secondary: { stat: 'accuracy',   perLevel: 0.015, threshold: 5 },
+    main:      { stat: 'attackSpeed',     perLevel: -20   },   // 음수 = 빠름
+    secondary: { stat: 'critChance',      perLevel: 0.005, threshold: 5 },
   },
   legs: {
     label: '각반',
-    main: { stat: 'dodge',           perLevel: 0.015 },
-    secondary: { stat: 'attackSpeed',perLevel: -10,   threshold: 5 },
+    main:      { stat: 'dodge',           perLevel: 0.015 },
+    secondary: { stat: 'damageReduction', perLevel: 0.010, threshold: 5 },
   },
   feet: {
     label: '신발',
-    main: { stat: 'accuracy',        perLevel: 0.025 },
-    secondary: { stat: 'dodge',      perLevel: 0.008, threshold: 5 },
+    main:      { stat: 'accuracy',        perLevel: 0.025 },
+    secondary: { stat: 'attackSpeed',     perLevel: -10,   threshold: 5 },
   },
 };
 

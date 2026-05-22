@@ -23,7 +23,7 @@ import {
 import { SLOTS, SLOT_LABELS } from '../data/items.js';
 
 const COLOR_GOLD       = '#C5A059';
-const COLOR_DIAMOND    = '#6AD8FF';
+const COLOR_DIAMOND    = '#FFD166';
 const COLOR_TEXT_PRI   = '#E8E8E8';
 const COLOR_TEXT_2ND   = '#9A9AA2';
 const COLOR_TEXT_MUTED = '#6A6A72';
@@ -309,7 +309,7 @@ export function showLoadout(scene, opts = {}) {
     modal.body.add(diaTxt); _panelEls.push(diaTxt);
     if (scene.textures && scene.textures.exists('icon-diamond')) {
       const diaIcon = scene.add.image(modal.w / 2 - 16 - diaTxt.width - 6, modal.bodyTopY + 22, 'icon-diamond')
-        .setDisplaySize(72, 44).setOrigin(1, 0.5);
+        .setDisplaySize(72, 44).setOrigin(1, 0.5).setTint(0xFFD166);
       modal.body.add(diaIcon); _panelEls.push(diaIcon);
     }
   };

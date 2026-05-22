@@ -4,12 +4,12 @@
 export const gameSettings = {
   bgmVolume: 0.7,
   sfxVolume: 0.7,
-  difficulty: 'normal',     // 현재 선택된 난이도
-  // 화면 흔들림 — 보스 등장 등 카메라 shake 효과 켜기/끄기
+  difficulty: 'normal',
   screenShake: true,
-  // 테스트 모드 — 관리자 메뉴 토글. 켜면:
-  //   상점 가격 컷 무시 + 골드 무제한 (구매 차감 X) + 무제한 리롤 버튼
   testMode: false,
+  // [P-64] 신규 옵션.
+  vibration: true,          // 진동 (모바일).
+  language: 'ko',           // 'ko' | 'en'.
 };
 
 const STORAGE_KEY = 'false-hero-settings';
@@ -61,6 +61,8 @@ const _SETTING_SCHEMA = {
   difficulty:  v => (DIFFICULTY_ORDER.includes(v)) ? v : null,
   screenShake: v => (typeof v === 'boolean') ? v : null,
   testMode:    v => (typeof v === 'boolean') ? v : null,
+  vibration:   v => (typeof v === 'boolean') ? v : null,
+  language:    v => (v === 'ko' || v === 'en') ? v : null,
 };
 
 export function loadSettings() {
