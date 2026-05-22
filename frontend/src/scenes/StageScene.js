@@ -82,12 +82,12 @@ export default class StageScene extends Phaser.Scene {
     // 잔존 selectedStage / 메모리 stale 방지 — currentSelection 도 강제 null
     this.currentSelection = null;
 
-    // === DEV MODE 인디케이터 — 좌상단 (다이아 카운트 우상단과 분리) ===
+    // === DEV MODE 인디케이터 — 좌상단 메뉴 버튼 아래로 (겹침 방지). ===
     if (this._isTest) {
-      this.add.text(18, 20, '● DEV MODE', {
-        fontFamily: FONT, fontSize: '18px', color: COL_GOLD,
-        fontStyle: '500', letterSpacing: 3,
-      }).setOrigin(0, 0).setAlpha(0.7);
+      this.add.text(20, 62, '● DEV MODE', {
+        fontFamily: FONT, fontSize: '15px', color: COL_GOLD,
+        fontStyle: '500', letterSpacing: 2,
+      }).setOrigin(0, 0).setAlpha(0.7).setDepth(900);
     }
 
     // 다이아 잔액 표시 제거 — 스테이지 선택창은 양피지 지도에 집중.
@@ -226,8 +226,8 @@ export default class StageScene extends Phaser.Scene {
       }
     });
 
-    // === 하단 링크 ===
-    this._makeBottomLink(W * 0.04, H - 30, '← 메뉴', 0,
+    // === 좌상단 메뉴 버튼 + 하단 환경 설정 ===
+    this._makeBottomLink(20, 38, '메뉴', 0,
       () => this.scene.start('MenuScene'));
     this._makeBottomLink(W - W * 0.04, H - 30, '환경 설정', 1,
       () => this.scene.start('SettingsScene'));

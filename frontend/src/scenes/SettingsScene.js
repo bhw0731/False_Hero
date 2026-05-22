@@ -80,61 +80,78 @@ export default class SettingsScene extends Phaser.Scene {
     frameBorder.fillStyle(0xFFFFFF, 0.08);
     frameBorder.fillRect(FRAME_X + 2, FRAME_TOP + 2, FRAME_W - 4, 1);
 
-    // === 콘텐츠 — 모든 행 요소는 _track 으로 panel 에 자동 등록. ===
+    // === 레이아웃 상수 — _buildContent 재호출 시 재사용. ===
     const PAD_INNER = Math.max(16, Math.round(FRAME_W * 0.04));
-    const SECTION_GAP = 14;
-    const ROW_H = 50;
-    const COL_LX = FRAME_X + PAD_INNER;
-    const COL_RX = FRAME_X + FRAME_W - PAD_INNER;
+    this._lay = {
+      FRAME_TOP, FRAME_X, FRAME_W,
+      MASK_Y, MASK_H,
+      SECTION_GAP: 14, ROW_H: 50,
+      COL_LX: FRAME_X + PAD_INNER,
+      COL_RX: FRAME_X + FRAME_W - PAD_INNER,
+    };
+    this._expanded = { terms: false, privacy: false, credits: false };
+    this._scrollY = 0;
 
-    let y = FRAME_TOP + 14;
+    this._buildContent();
+    this._initScrollHandlers();
+
+    // ESC = 뒤로.
+    this.input.keyboard.on('keydown-ESC', () => this._exit());
+
+    // 씬 종료 시 HTML input 정리.
+    this.events.on('shutdown', () => this._unmountCodeInput());
+    this.events.on('destroy',  () => this._unmountCodeInput());
+  }
+
+  // === 콘텐츠 빌드 (아코디언 펼침/접힘 시 재호출). ===
+  _buildContent() {
+    if (this._panel) this._panel.removeAll(true);
+    const L = this._lay;
+    let y = L.FRAME_TOP + 14;
 
     const _section = (label) => {
       y += 4;
-      const t = this._track(this.add.text(COL_LX, y, label, {
+      const t = this._track(this.add.text(L.COL_LX, y, label, {
         fontFamily: FONT, fontSize: '16px', color: '#E8D4A8', fontStyle: '900', letterSpacing: 3,
       }).setOrigin(0, 0.5));
       const g = this._track(this.add.graphics());
       g.fillStyle(0xC5A059, 0.40);
-      g.fillRect(COL_LX + t.width + 12, y - 0.5, COL_RX - (COL_LX + t.width + 12), 1);
+      g.fillRect(L.COL_LX + t.width + 12, y - 0.5, L.COL_RX - (L.COL_LX + t.width + 12), 1);
       y += 28;
     };
 
-    // ─── [사운드] ───
     _section('사운드');
-    this._makeSliderRow(COL_LX, COL_RX, y, 'BGM 볼륨', 'bgmVolume'); y += ROW_H;
-    this._makeSliderRow(COL_LX, COL_RX, y, '효과음 볼륨', 'sfxVolume'); y += ROW_H;
-    this._makeToggleRow(COL_LX, COL_RX, y, '진동', 'vibration'); y += ROW_H;
+    this._makeSliderRow(L.COL_LX, L.COL_RX, y, 'BGM 볼륨', 'bgmVolume'); y += L.ROW_H;
+    this._makeSliderRow(L.COL_LX, L.COL_RX, y, '효과음 볼륨', 'sfxVolume'); y += L.ROW_H;
+    this._makeToggleRow(L.COL_LX, L.COL_RX, y, '진동', 'vibration'); y += L.ROW_H;
 
-    y += SECTION_GAP;
+    y += L.SECTION_GAP;
     _section('게임');
-    this._makeChoiceRow(COL_LX, COL_RX, y, '언어', 'language',
-      [{ v: 'ko', l: '한국어' }, { v: 'en', l: 'English' }]); y += ROW_H;
-    this._makeToggleRow(COL_LX, COL_RX, y, '화면 흔들림', 'screenShake'); y += ROW_H;
+    this._makeChoiceRow(L.COL_LX, L.COL_RX, y, '언어', 'language',
+      [{ v: 'ko', l: '한국어' }, { v: 'en', l: 'English' }]); y += L.ROW_H;
+    this._makeToggleRow(L.COL_LX, L.COL_RX, y, '화면 흔들림', 'screenShake'); y += L.ROW_H;
 
-    y += SECTION_GAP;
+    y += L.SECTION_GAP;
     _section('계정');
-    this._makeAccountRow(COL_LX, COL_RX, y); y += ROW_H;
-    this._makeCodeInputRow(COL_LX, COL_RX, y); y += ROW_H;
+    this._makeAccountRow(L.COL_LX, L.COL_RX, y); y += L.ROW_H;
+    this._makeCodeInputRow(L.COL_LX, L.COL_RX, y); y += L.ROW_H;
 
-    y += SECTION_GAP;
+    y += L.SECTION_GAP;
     _section('정보 · 지원');
-    this._makeLinkRow(COL_LX, COL_RX, y, '이용약관',           () => this._openInfoModal('terms')); y += ROW_H;
-    this._makeLinkRow(COL_LX, COL_RX, y, '개인정보처리방침',   () => this._openInfoModal('privacy')); y += ROW_H;
-    this._makeLinkRow(COL_LX, COL_RX, y, '크레딧',             () => this._openInfoModal('credits')); y += ROW_H;
+    y = this._makeAccordionRow(L.COL_LX, L.COL_RX, y, '이용약관', 'terms');
+    y = this._makeAccordionRow(L.COL_LX, L.COL_RX, y, '개인정보처리방침', 'privacy');
+    y = this._makeAccordionRow(L.COL_LX, L.COL_RX, y, '크레딧', 'credits');
 
     y += 12;   // 하단 여유.
 
-    // === 스크롤 영역 셋업 — mask 경계 기준. ===
-    this._scrollMaxY = Math.max(0, y - (MASK_Y + MASK_H));
-    this._scrollY = 0;
-    this._scrollTopY = MASK_Y;
-    this._scrollBotY = MASK_Y + MASK_H;
-    this._initScrollHandlers();
-    this._repositionCodeInput();   // 스크롤 경계 확정 후 input 위치 재조정.
-
-    // ESC = 뒤로.
-    this.input.keyboard.on('keydown-ESC', () => this._exit());
+    // === 스크롤 영역 갱신. ===
+    this._scrollMaxY = Math.max(0, y - (L.MASK_Y + L.MASK_H));
+    this._scrollTopY = L.MASK_Y;
+    this._scrollBotY = L.MASK_Y + L.MASK_H;
+    // 펼침으로 콘텐츠 줄었을 때 스크롤 위치 클램프.
+    this._scrollY = Math.max(0, Math.min(this._scrollMaxY, this._scrollY));
+    if (this._panel) this._panel.y = -this._scrollY;
+    this._repositionCodeInput();
   }
 
   // === 패널 추적 — 생성한 객체를 panel container 에 자동 추가 ===
@@ -278,19 +295,6 @@ export default class SettingsScene extends Phaser.Scene {
     this._makeMiniBtn(cx + 70, y, '▶', () => move(1));
   }
 
-  _makeLinkRow(lx, rx, y, label, onClick) {
-    this._rowLabel(lx, y, label);
-    const txt = this._track(this.add.text(rx, y, '› 보기', {
-      fontFamily: FONT, fontSize: '16px', color: COLOR_GOLD, fontStyle: '800',
-    }).setOrigin(1, 0.5));
-    txt.setShadow(1, 1, '#000000', 2, false, true);
-    const hit = this._track(this.add.zone(rx - 60, y, 120, 44).setOrigin(0, 0.5)
-      .setInteractive({ useHandCursor: true }));
-    hit.on('pointerdown',      () => txt.setColor('#FFFFFF'));
-    hit.on('pointerupoutside', () => txt.setColor(COLOR_GOLD));
-    hit.on('pointerup',        () => { txt.setColor(COLOR_GOLD); onClick(); });
-  }
-
   _makeAccountRow(lx, rx, y) {
     this._rowLabel(lx, y, '계정 연동');
     const stateTxt = this._track(this.add.text(rx - 110, y, '미로그인', {
@@ -320,10 +324,67 @@ export default class SettingsScene extends Phaser.Scene {
     this._mountCodeInput();
     // 확인 버튼 → 입력값 적용.
     this._makePillBtn(rx - 50, y, 90, 36, '확인', () => this._submitCode());
+  }
 
-    // 스크롤/씬 종료 시 input 위치 갱신·정리.
-    this.events.on('shutdown', () => this._unmountCodeInput());
-    this.events.on('destroy',  () => this._unmountCodeInput());
+  // === 정보·지원 아코디언 행 — 제목 탭 시 인라인 펼침/접힘. 반환: 다음 y. ===
+  _makeAccordionRow(lx, rx, y, label, kind) {
+    const open = !!this._expanded[kind];
+    // 제목 줄.
+    const titleTxt = this._track(this.add.text(lx, y, label, {
+      fontFamily: FONT, fontSize: '17px', color: open ? COLOR_GOLD : COLOR_BEIGE, fontStyle: '700',
+    }).setOrigin(0, 0.5));
+    titleTxt.setShadow(1, 1, '#000000', 2, false, true);
+    // 펼침 표시 (▼ / ▲).
+    const arrow = this._track(this.add.text(rx, y, open ? '▲' : '▼', {
+      fontFamily: FONT, fontSize: '15px', color: COLOR_GOLD, fontStyle: '900',
+    }).setOrigin(1, 0.5));
+    // 제목 줄 전체 탭 영역.
+    const hit = this._track(this.add.zone(lx, y - 22, rx - lx, 44).setOrigin(0, 0)
+      .setInteractive({ useHandCursor: true }));
+    hit.on('pointerup', () => {
+      this._expanded[kind] = !this._expanded[kind];
+      this._buildContent();   // 재빌드로 펼침 반영.
+    });
+    y += this._lay.ROW_H;
+
+    // 펼친 경우 본문 텍스트.
+    if (open) {
+      const bodyTxt = this._track(this.add.text(lx, y - 18, this._infoBody(kind), {
+        fontFamily: FONT, fontSize: '14px', color: '#CBD5E1', fontStyle: '600',
+        wordWrap: { width: rx - lx }, lineSpacing: 6,
+      }).setOrigin(0, 0));
+      y += bodyTxt.height + 18;
+    }
+    return y;
+  }
+
+  _infoBody(kind) {
+    const map = {
+      terms: [
+        '본 게임 이용약관 (더미).',
+        '',
+        '1. 본 게임은 개인 학습/취미용 프로젝트입니다.',
+        '2. 게임 진행에 따른 데이터 손실은 책임지지 않습니다.',
+        '3. 실제 약관은 추후 작성 예정.',
+      ].join('\n'),
+      privacy: [
+        '개인정보처리방침 (더미).',
+        '',
+        '1. 본 게임은 로컬에만 데이터를 저장합니다.',
+        '2. Firebase 연동 시 익명 UID 만 수집.',
+        '3. 실제 방침은 추후 작성 예정.',
+      ].join('\n'),
+      credits: [
+        'False Hero — A Fake Hero\'s Tale',
+        '',
+        'Developer: false hero studios',
+        'Engine: Phaser 4 + Vite + Capacitor',
+        'Font: Galmuri11 / Cinzel',
+        '',
+        'Version 1.0.0',
+      ].join('\n'),
+    };
+    return map[kind] || '';
   }
 
   // Phaser 좌표 → 화면(브라우저) 좌표 변환 (FIT 스케일 반영).
@@ -473,64 +534,5 @@ export default class SettingsScene extends Phaser.Scene {
     hit.on('pointerdown',      () => draw(true));
     hit.on('pointerupoutside', () => draw(false));
     hit.on('pointerup',        () => { draw(false); onClick(); });
-  }
-
-  // ===== 정보 모달 ===== (스크롤 영향 X — depth 2000+)
-  _openInfoModal(kind) {
-    const W = this.scale.width, H = this.scale.height;
-    const dlgW = Math.min(W * 0.7, 720);
-    const dlgH = Math.min(H * 0.8, 460);
-    const cx = W / 2, cy = H / 2;
-    const c = this.add.container(cx, cy).setDepth(2000);
-    const overlay = this.add.rectangle(cx, cy, W, H, 0x000000, 0.7).setDepth(1999)
-      .setInteractive();
-    const g = this.add.graphics();
-    g.fillStyle(0x0E1726, 0.97);
-    g.fillRoundedRect(-dlgW / 2, -dlgH / 2, dlgW, dlgH, 8);
-    g.lineStyle(1, 0xC5A059, 0.5);
-    g.strokeRoundedRect(-dlgW / 2, -dlgH / 2, dlgW, dlgH, 8);
-    c.add(g);
-    const titleMap = { terms: '이용약관', privacy: '개인정보처리방침', credits: '크레딧' };
-    const title = addText(this, 0, -dlgH / 2 + 22, `◈ ${titleMap[kind] || '안내'}`, {
-      fontFamily: FONT, fontSize: '20px', color: COLOR_GOLD, fontStyle: '900',
-    }).setOrigin(0.5);
-    c.add(title);
-    const bodyMap = {
-      terms: [
-        '본 게임 이용약관 (더미).',
-        '',
-        '1. 본 게임은 개인 학습/취미용 프로젝트입니다.',
-        '2. 게임 진행에 따른 데이터 손실은 책임지지 않습니다.',
-        '3. 실제 약관은 추후 작성 예정.',
-      ].join('\n'),
-      privacy: [
-        '개인정보처리방침 (더미).',
-        '',
-        '1. 본 게임은 로컬에만 데이터를 저장합니다.',
-        '2. Firebase 연동 시 익명 UID 만 수집.',
-        '3. 실제 방침은 추후 작성 예정.',
-      ].join('\n'),
-      credits: [
-        'False Hero — A Fake Hero\'s Tale',
-        '',
-        'Developer: false hero studios',
-        'Engine: Phaser 4 + Vite + Capacitor',
-        'Font: Galmuri11 / Cinzel',
-        '',
-        'Version 1.0.0',
-      ].join('\n'),
-    };
-    const body = addText(this, 0, 0, bodyMap[kind] || '', {
-      fontFamily: FONT, fontSize: '15px', color: '#CBD5E1', fontStyle: '600',
-      align: 'center', wordWrap: { width: dlgW - 60 }, lineSpacing: 6,
-    }).setOrigin(0.5);
-    c.add(body);
-    const xBtn = addText(this, dlgW / 2 - 22, -dlgH / 2 + 22, '✕', {
-      fontFamily: FONT, fontSize: '20px', color: COLOR_BEIGE, fontStyle: '900',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    c.add(xBtn);
-    const close = () => { overlay.destroy(); c.destroy(); };
-    xBtn.on('pointerup', close);
-    overlay.on('pointerdown', close);
   }
 }

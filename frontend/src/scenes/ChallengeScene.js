@@ -54,11 +54,11 @@ export default class ChallengeScene extends Phaser.Scene {
     this.add.image(bx, by, 'ui-challenges').setDisplaySize(bw, bh).setDepth(0);
 
     // === 헤더 ===
-    const exitTxt = this.add.text(20, 32, '◀  나가기', {
+    const exitTxt = this.add.text(20, 32, '메뉴', {
       fontFamily: FONT, fontSize: '20px', color: '#FFE9B5', fontStyle: '800',
     }).setOrigin(0, 0.5).setDepth(900);
     exitTxt.setShadow(2, 2, '#000000', 3, false, true);
-    const exitHit = this.add.zone(20, 32, 140, 36).setOrigin(0, 0.5)
+    const exitHit = this.add.zone(20, 32, 140, 44).setOrigin(0, 0.5)
       .setInteractive({ useHandCursor: true }).setDepth(900);
     exitHit.on('pointerdown',      () => exitTxt.setColor('#FFFFFF'));
     exitHit.on('pointerup',        () => { exitTxt.setColor('#FFE9B5'); this.scene.start('MenuScene'); });

@@ -87,11 +87,11 @@ export function showDiamondShop(scene, options = {}) {
 
   // === fullscreen 모드 — 모달 헤더 좌측에 나가기 링크 ===
   if (fullscreen) {
-    const exTxt = addText(scene, -modal.w / 2 + 20, -modal.h / 2 + 32, '◀  나가기', {
+    const exTxt = addText(scene, -modal.w / 2 + 20, -modal.h / 2 + 32, '메뉴', {
       fontFamily: FONT, fontSize: '20px', color: '#FFE9B5', fontStyle: '800',
     }).setOrigin(0, 0.5);
     exTxt.setShadow(2, 2, '#000000', 3, false, true);
-    const exHit = scene.add.rectangle(-modal.w / 2 + 70, -modal.h / 2 + 32, 130, 36, 0x000000, 0.001)
+    const exHit = scene.add.rectangle(-modal.w / 2 + 70, -modal.h / 2 + 32, 130, 44, 0x000000, 0.001)
       .setScrollFactor(0).setInteractive({ useHandCursor: true });
     // [P-59 2차] 호버 제거 — pointerdown 강조, pointerup 액션.
     exHit.on('pointerdown', (p, lx, ly, ev) => {
