@@ -74,10 +74,19 @@ export default class MenuScene extends Phaser.Scene {
     sound.playBgm(this, 'menu_theme');
 
     // === 배경 PNG (달 + 마왕성 + 구름 + 빛줄기 통합) ===
+    // [등장 연출] 처음엔 alpha 0 (검정에서 떠오름) + 아주 느린 켄번즈 줌(살아있는 배경)
     const bgImg = this.add.image(W * 0.5, H * 0.5, 'background')
       .setOrigin(0.5, 0.5)
-      .setDepth(-10);
+      .setDepth(-10)
+      .setAlpha(0);
     bgImg.setDisplaySize(W, H);
+    // setDisplaySize 가 만든 scale 을 base 로 잡고, 항상 ≥ base*1.04 로 유지해 가장자리 빈틈 방지.
+    const bgBaseSX = bgImg.scaleX * 1.04, bgBaseSY = bgImg.scaleY * 1.04;
+    bgImg.setScale(bgBaseSX, bgBaseSY);
+    this.tweens.add({
+      targets: bgImg, scaleX: bgBaseSX * 1.06, scaleY: bgBaseSY * 1.06,
+      duration: 20000, ease: 'Sine.easeInOut', yoyo: true, repeat: -1,
+    });
 
 
     // === 타이틀 — 가운데 상단 (Phase P-7: 좌측→가운데, 모바일 가로 letterbox 대응) ===
@@ -115,7 +124,7 @@ export default class MenuScene extends Phaser.Scene {
       });
       this.time.delayedCall(1500 + Phaser.Math.Between(-200, 200), fireGlitch);
     };
-    this.time.delayedCall(1200, fireGlitch);
+    // ⚠ 즉시 트리거 X — 등장 연출(_playMenuEntrance) 완료 후 시작 (타이틀 안착 뒤).
 
     // 부제 — 로고 바로 아래, 같은 톤 (가운데 정렬)
     this._subTitleText = this.add.text(titleX, titleY + TITLE_FS * 0.7, 'A FAKE HERO\'S TALE', {
@@ -168,7 +177,7 @@ export default class MenuScene extends Phaser.Scene {
     };
 
     // 푸터 — 우측 하단 구석, 읽을 수 있을 정도
-    this.add.text(W * 0.97, H * 0.97, 'v0.1', {
+    const versionTxt = this.add.text(W * 0.97, H * 0.97, 'v0.1', {
       fontFamily: FONT, fontSize: '16px', color: '#9A9AA2', letterSpacing: 1,
     }).setOrigin(1, 1);
 
@@ -177,17 +186,74 @@ export default class MenuScene extends Phaser.Scene {
     scanG.fillStyle(0x000000, 0.06);
     for (let yy = 0; yy < H; yy += 3) scanG.fillRect(0, yy, W, 1);
 
-    // 메뉴 진입 페이드 인
-    // === 배경 분위기 효과 (있는 듯 없는 듯, 미묘) ===
-    this._setupBackgroundFX();
-
     attachTouchFeedback(this);
 
-    this.cameras.main.fadeIn(360, 0, 0, 0);
+    // === 첫 진입 등장 연출 — 정통 스태거드 reveal ===
+    //   배경 떠오름 → 타이틀 스르륵 상승 → 부제 → 메뉴 한 줄씩 → 구석 UI →
+    //   (완료 후) 글리치/먼지/별 등 분위기 효과 시작. 클릭 동작·레이아웃은 그대로.
+    this.cameras.main.fadeIn(300, 0, 0, 0);
+    this._playMenuEntrance({ bgImg, versionTxt, scanG, fireGlitch });
 
     // [Phase P-9] 풀스크린 / 회전 자동화 모두 제거 — 사용자 자율.
     //   브라우저: 사용자가 가로로 돌리면 캔버스가 화면에 맞춰 자동 확대 (Phaser scale FIT).
     //   APK: capacitor.config.json orientation: landscape 가 OS 레벨 가로 강제 (보존).
+  }
+
+  // === 첫 진입 등장 연출 — 정통 스태거드 reveal ===
+  //   배경(페이드+켄번즈) → 타이틀(상승) → 부제 → 메뉴(한 줄씩) → 구석 UI →
+  //   완료 후 분위기 효과(글리치/먼지/별/로고 떨림) 시작 → "정적 → 살아남" 흐름.
+  //   ⚠ alpha/y 만 일시 조정하고 최종값으로 복귀 — 클릭/호버/레이아웃 로직 불변.
+  _playMenuEntrance({ bgImg, versionTxt, scanG, fireGlitch }) {
+    const tw = (cfg) => this.tweens.add(cfg);
+
+    // 1) 배경 — 검정에서 부드럽게 떠오름
+    tw({ targets: bgImg, alpha: 1, duration: 1000, ease: 'Sine.easeOut' });
+
+    // 2) 타이틀 — 살짝 아래에서 스르륵 상승 + 페이드
+    if (this._titleText) {
+      const ty = this._titleText.y;
+      this._titleText.setAlpha(0).setY(ty + 20);
+      tw({ targets: this._titleText, alpha: 1, y: ty, duration: 850, delay: 450, ease: 'Cubic.easeOut' });
+    }
+    // 3) 부제 — 타이틀 뒤따라 페이드 + 살짝 상승
+    if (this._subTitleText) {
+      const sy = this._subTitleText.y;
+      this._subTitleText.setAlpha(0).setY(sy + 12);
+      tw({ targets: this._subTitleText, alpha: 1, y: sy, duration: 700, delay: 820, ease: 'Sine.easeOut' });
+    }
+
+    // 4) 메뉴 — 한 줄씩 아래에서 위로 (캐스케이드). 마커(alpha 0)는 건드리지 않음.
+    const menuTexts = (this._menuLayer || []).filter(
+      go => go instanceof Phaser.GameObjects.Text && go.alpha > 0.01
+    );
+    const MENU_BASE_DELAY = 1150, MENU_STAGGER = 110;
+    menuTexts.forEach((t, i) => {
+      const finalAlpha = t.alpha;   // 항목별 기본 alpha 보존 (보통 1, DEV 목록 0.8)
+      const my = t.y;
+      t.setAlpha(0).setY(my + 16);
+      tw({
+        targets: t, alpha: finalAlpha, y: my,
+        duration: 520, delay: MENU_BASE_DELAY + i * MENU_STAGGER, ease: 'Cubic.easeOut',
+      });
+    });
+
+    // 5) 구석 UI (⚙ / 💎 / 버전 / 스캔라인) — 가장 늦게 은은하게
+    const cornerDelay = MENU_BASE_DELAY + menuTexts.length * MENU_STAGGER + 120;
+    [this._gearTxt, this._diamondTxt, this._diamondIcon, versionTxt, scanG]
+      .filter(Boolean)
+      .forEach(go => {
+        const a = go.alpha;
+        go.setAlpha(0);
+        tw({ targets: go, alpha: a, duration: 600, delay: cornerDelay, ease: 'Sine.easeOut' });
+      });
+
+    // 6) 등장 완료 후 — 분위기 효과 시작 (정적 → 살아남)
+    const ambientDelay = cornerDelay + 500;
+    this.time.delayedCall(ambientDelay, () => {
+      if (!this.sys || !this.sys.isActive()) return;
+      this._setupBackgroundFX();
+      if (typeof fireGlitch === 'function') fireGlitch();
+    });
   }
 
   // === 개발자 모드 잠금 / 노출 ===
