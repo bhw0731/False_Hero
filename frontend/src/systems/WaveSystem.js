@@ -15,6 +15,7 @@ import { sound } from './SoundManager.js';
 import { pickRandomEnemy, pickRandomEnemyForSegment, getEnemyById } from '../data/enemies.js';
 import { FONT } from '../ui/theme.js';
 import { addDiamonds } from '../data/diamonds.js';
+import { STAR_CHAPTER, computeStars, recordStageStars, getTotalStars, getOpenableChests } from '../data/chapterStars.js';
 
 const CHAPTER_CLEAR_COUNT_KEY = 'falseHero.chapterClearCount';
 
@@ -45,6 +46,12 @@ const ELITE_BOSS_STAT_MUL = 0.7;      // 정예: 메인의 70%
 const REST_AFTER_BOSS = 200;          // 보스 처치 후 빈 공간 (회복/숨 고르기)
 const SEGMENT_START_OFFSET = 200;     // 플레이어 시작 위치 직후 빈 공간
 const NPC_MARGIN = 60;                // NPC 직전 잡몹 안 배치 (NPC 시각 깔끔)
+
+// === ⭐ 챕터 2 웨이브 모드 상수 (챕터 2 = STAR_CHAPTER 일 때만 사용) ===
+//   적은 제자리(기존 전투 그대로), 플레이어가 달려가 처치. 웨이브 클리어 시 다음 웨이브가 앞쪽에 등장.
+const ARENA_WAVE_AHEAD = 440;     // 플레이어 앞쪽 N px 부터 웨이브 적 등장 (달려가서 처치)
+const ARENA_MOB_SPACING = 110;    // 웨이브 안 적 간격
+const ARENA_MOB_WAVES = 4;        // 잡몹 웨이브 수 (+ 마지막 보스 웨이브 = 총 5)
 
 export default class WaveSystem {
   constructor(scene, player, combatSystem) {
@@ -130,6 +137,10 @@ export default class WaveSystem {
       this._eventNodes.forEach(n => n && n.destroy && n.destroy());
     }
     this._eventNodes = [];
+
+    // ⭐ 챕터 2 — 고정 아레나 디펜스 (완전히 다른 진행). 챕터 1/3은 아래 기존 배치 그대로.
+    if (this._isArena()) { this._enterStageArena(); return; }
+
     this.spawnStage();
     // 매점 NPC entity 생성 — 5보스 직전 (서브×3 + 정예 + 메인).
     const bossesForNpc = [...this.subBosses, this.eliteBoss, this.mainBoss].filter(b => b && b.sprite);
@@ -138,6 +149,134 @@ export default class WaveSystem {
       const ent = new ShopNPC(this.scene, npcX, 446);
       this._shopNpcEntities.push(ent);
       this.shopNpcs.push({ x: npcX, visited: false });
+    });
+  }
+
+  // ============================================================
+  // === ⭐ 챕터 2 고정 아레나 디펜스 ===
+  //   플레이어 제자리 고정, 적이 우측에서 웨이브로 등장 → 걸어 들어옴.
+  //   잡몹 웨이브 N개 + 마지막 보스 웨이브. 모든 처리 챕터 2(hard)에서만.
+  // ============================================================
+  _isArena() {
+    return (gameSettings && gameSettings.difficulty) === STAR_CHAPTER;
+  }
+
+  _enterStageArena() {
+    this.enemies = [];
+    this.currentBoss = null;
+    this._shopNpcEntities = [];
+    this.shopNpcs = [];
+    this._eventNodes = [];
+
+    if (this.player.onWaveStart) this.player.onWaveStart();
+    // 큐 버프 → 활성 (기존 spawnStage 와 동일).
+    if (this.player.queuedBuffs) {
+      this.player.activeBuffs.attackPower     = this.player.queuedBuffs.attackPower     || 0;
+      this.player.activeBuffs.attackSpeed     = this.player.queuedBuffs.attackSpeed     || 0;
+      this.player.activeBuffs.damageReduction = this.player.queuedBuffs.damageReduction || 0;
+      this.player.queuedBuffs.attackPower     = 0;
+      this.player.queuedBuffs.attackSpeed     = 0;
+      this.player.queuedBuffs.damageReduction = 0;
+    }
+
+    sound.crossfadeBgm(this.scene, 'game_normal', 600);
+
+    // 플레이어 고정 위치.
+    if (this.player.sprite) {
+      this.player.sprite.x = PLAYER_START_X;
+      if (this.player.stop) this.player.stop();
+    }
+
+    this.combatSystem.setEnemies(this.enemies);
+    this.waveActive = true;
+    this.scene._stageStartedAt = Date.now();
+    this.scene._stageElapsedMs = 0;
+
+    // 웨이브 계획.
+    this._arenaMobWaves = ARENA_MOB_WAVES;
+    this._arenaTotalWaves = ARENA_MOB_WAVES + 1;   // + 보스 웨이브
+    this._arenaWaveIndex = -1;
+    this._arenaSpawning = false;
+    this._arenaBetweenWaves = false;
+
+    this._arenaStartWave(0);
+  }
+
+  _arenaStartWave(idx) {
+    this._arenaWaveIndex = idx;
+    this._arenaBetweenWaves = false;
+    const isBossWave = (idx >= this._arenaMobWaves);
+    if (isBossWave) {
+      this._arenaSpawnBossWave();
+    } else {
+      // 후반 웨이브일수록 약간 더 많이.
+      const count = 5 + Math.floor(this.currentStage * 0.6) + idx;
+      this._arenaSpawnMobWave(count);
+    }
+    this.combatSystem.setEnemies(this.enemies);
+    this.scene.events.emit('arena-wave', {
+      wave: idx + 1, total: this._arenaTotalWaves, boss: isBossWave,
+    });
+  }
+
+  _arenaSpawnMobWave(count) {
+    const stageMul = 1 + (this.currentStage - 1) * 0.2;
+    let lateBoost = 1;
+    if (this.currentStage >= 3) lateBoost = 1 + (this.currentStage - 2) * 0.05;
+    if (this.currentStage >= 6) lateBoost += (this.currentStage - 5) * 0.06;
+    const totalMul = stageMul * getDifficultyMultiplier() * lateBoost;
+    const debuffRange = (this.currentStage - 1) * 5;
+    const segIdx = Math.min(4, this._arenaWaveIndex);
+
+    // 플레이어 앞쪽에 적 배치 — 플레이어가 달려가 처치 (제자리 적).
+    const px = this.player.sprite ? this.player.sprite.x : PLAYER_START_X;
+    const baseX = px + ARENA_WAVE_AHEAD;
+
+    for (let i = 0; i < count; i++) {
+      const x = baseX + i * ARENA_MOB_SPACING + Phaser.Math.Between(-20, 20);
+      const type = pickRandomEnemyForSegment(this.currentStage, segIdx);
+      const enemy = new Enemy(this.scene, x, 446, {
+        id: type.id,
+        maxHp: Math.floor(type.baseHp * totalMul),
+        attackPower: Math.max(1, Math.floor(type.attackPower * totalMul * Phaser.Math.FloatBetween(0.9, 1.1))),
+        attackRange: type.attackRange + debuffRange,
+        attackSpeed: Math.floor(type.attackSpeed * Phaser.Math.FloatBetween(0.9, 1.1)),
+        dodgeChance: type.dodgeChance,
+        size: NORMAL_ENEMY_SIZE,
+        expReward: type.expReward,
+        goldReward: Math.floor(type.goldReward * stageMul),
+        textureKey: type.spriteKey,
+        color: 0x800080,
+      });
+      this.enemies.push(enemy);
+    }
+  }
+
+  _arenaSpawnBossWave() {
+    // 기존 메인보스 생성 로직 재사용 (디버프/부적/이름 등 그대로) 후 플레이어 앞쪽으로 이동.
+    this._spawnMainBoss();
+    if (this.mainBoss && this.mainBoss.sprite) {
+      const px = this.player.sprite ? this.player.sprite.x : PLAYER_START_X;
+      this.mainBoss.sprite.x = px + ARENA_WAVE_AHEAD + 80;
+      if (this.mainBoss.updateHpDisplay) this.mainBoss.updateHpDisplay();
+    }
+  }
+
+  // 매 프레임 — 웨이브 진행만 (적은 제자리, 플레이어가 달려가 처치).
+  _arenaUpdate() {
+    if (this._stageCleared) return;
+    if (this._arenaBetweenWaves || this._arenaSpawning) return;
+    const alive = this.combatSystem.getAliveEnemies();
+    if (alive.length > 0) return;
+
+    // 현재 웨이브 전멸 → 다음 웨이브 (보스 웨이브 클리어는 _checkStageCleared 가 처리).
+    const isBossWave = (this._arenaWaveIndex >= this._arenaMobWaves);
+    if (isBossWave) return;
+    this._arenaBetweenWaves = true;
+    this._arenaSpawning = true;
+    this.scene.time.delayedCall(1200, () => {
+      this._arenaSpawning = false;
+      this._arenaStartWave(this._arenaWaveIndex + 1);
     });
   }
 
@@ -536,7 +675,29 @@ export default class WaveSystem {
     // [Phase P-54 BUGFIX] 보스 처치 즉시 진행도 저장 — 클리어 모달에서 '메뉴로' 눌러도 unlock 보존.
     //   옛 로직: proceedToNextStage 안에서만 mark → 메뉴 복귀 시 진행도 손실.
     this._markStageCleared(this.currentStage);
-    this.scene.events.emit('stage-cleared', this.currentStage);
+
+    // ⭐ 챕터 2('hard') 전용 — 별점 평가(HP 기준) + 별도 저장. 보상 상자는 지도에서 수동 개봉.
+    //   다른 챕터는 starInfo = null 로 기존 클리어 모달 그대로.
+    let starInfo = null;
+    const diff = (gameSettings && gameSettings.difficulty) || 'normal';
+    if (diff === STAR_CHAPTER) {
+      const maxHp = (this.player.getStat ? this.player.getStat('maxHp') : this.player.stats.maxHp) || 1;
+      const hpRatio = Math.max(0, (this.player.stats.hp || 0) / maxHp);
+      const stars = computeStars(hpRatio);
+      const rec = recordStageStars(this.currentStage, stars);
+      const total = getTotalStars();
+      starInfo = {
+        stars,                               // 이번 클리어에서 획득한 별.
+        best: rec.stars,                     // 최고 기록 (재도전 갱신 반영).
+        prevBest: rec.prev,                  // 직전 최고 기록.
+        improved: rec.improved,              // 기록 갱신 여부.
+        hpRatio,
+        total,                               // 챕터 2 누적 별 (0~30).
+        openableChests: getOpenableChests(total).length,   // 개봉 가능한 보상 상자 수 (지도에서 열기).
+      };
+    }
+
+    this.scene.events.emit('stage-cleared', this.currentStage, starInfo);
   }
 
   // === 다음 스테이지 진행 ===
@@ -669,6 +830,14 @@ export default class WaveSystem {
   update() {
     if (!this.waveActive) return;
     if (this._stageCleared) return;
+
+    // ⭐ 챕터 2 아레나 — 적 추격 이동 + 웨이브 진행.
+    if (this._isArena()) {
+      this._arenaUpdate();
+      this._checkBossActivation();   // 보스 웨이브 보스가 다가오면 등장 연출/디버프 발동.
+      this._checkStageCleared();     // 보스 처치 시 클리어 (mainBoss 없으면 자동 무시).
+      return;
+    }
 
     // 매점 NPC 근접 체크
     if (this._shopNpcEntities) {

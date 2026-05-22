@@ -11,6 +11,7 @@ import { items, SLOTS, SLOT_LABELS } from '../data/items.js';
 import { PASSIVES } from '../data/passives.js';
 import { specialCards } from '../data/specialCards.js';
 import { isUpgradeOwned, isEquipmentUnlocked, getSlotLevels } from '../data/diamonds.js';
+import { STAR_CHAPTER } from '../data/chapterStars.js';
 import { getSlotEffect } from '../data/loadoutUpgrades.js';
 import { createModal } from '../ui/Modal.js';
 import { makeGlassBtn } from '../ui/glassBtn.js';
@@ -158,15 +159,37 @@ export default class GameScene extends Phaser.Scene {
     // bounds: 맵 시작 (player.x 시작 - W/2 정도 여유) ~ 맵 끝 (player.x + 8000 + W/2 여유).
     //   사용자가 우측 메인보스 까지 진행 후 멈춤. 좌측 / 우측 영원히 진행 X.
     const MAP_LENGTH = 8000;
+    // ⭐ 챕터 2 = 웨이브 모드 (플레이어가 달려가 처치). 카메라 follow 는 기존과 동일.
+    this._arenaMode = ((gameSettings && gameSettings.difficulty) === STAR_CHAPTER);
     cam.setBounds(-W / 2, 0, MAP_LENGTH + W, H);
     // startFollow(target, roundPixels, lerpX, lerpY) — Y lerp 0 으로 Y 잠금.
-    // [Phase P-54] lerpX 0.1 → 1.0 (스냅 follow). 카메라 매트릭스 소수점 변동 제거 → UI 텍스트 흔들림 방지.
-    //   deadzone 60×400 이 살짝 부드럽게 해주므로 (작은 움직임 무시) 스냅이라도 거칠지 않음.
     cam.startFollow(this.player.sprite, true, 1.0, 0);
     // 좌측 1/3 위치 — 카메라 중심이 플레이어보다 W/6 만큼 우측.
     cam.setFollowOffset(-W / 6, 0);
     // deadzone 60×400 — 작은 움직임 무시.
     cam.setDeadzone(60, 400);
+
+    // ⭐ 챕터 2 — 달리기 모션 기준 Y 저장 (상하 바운스용).
+    if (this._arenaMode) {
+      this._playerBaseY = (this.player && this.player.sprite) ? this.player.sprite.y : 0;
+    }
+
+    // ⭐ 챕터 2 아레나 — 상단 WAVE 카운터 (진행바 대체).
+    if (this._arenaMode) {
+      this._arenaWaveText = this.add.text(W * 0.5, 22, '', {
+        fontFamily: FONT, fontSize: '20px', color: '#FFD166', fontStyle: '900', letterSpacing: 2,
+      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(1500);
+      this._arenaWaveText.setShadow(0, 2, '#000000', 4, false, true);
+      this.events.on('arena-wave', ({ wave, total, boss }) => {
+        if (!this._arenaWaveText || !this._arenaWaveText.scene) return;
+        this._arenaWaveText.setText(boss ? '◆ BOSS WAVE ◆' : `WAVE ${wave} / ${total}`);
+        this._arenaWaveText.setColor(boss ? '#FF6B6B' : '#FFD166');
+        this.tweens.add({
+          targets: this._arenaWaveText, scale: { from: 1.25, to: 1 },
+          duration: 320, ease: 'Back.easeOut',
+        });
+      });
+    }
 
     // === UI ===
 
@@ -264,13 +287,13 @@ export default class GameScene extends Phaser.Scene {
 
     // [무한 맵] 스테이지 클리어 — 메인보스 처치 시 emit. 세련된 클리어 모달 표시.
     this.events.removeAllListeners('stage-cleared');
-    this.events.on('stage-cleared', (stage) => {
-      console.log('[stage] stage-cleared:', stage, '→ show stage clear modal');
+    this.events.on('stage-cleared', (stage, starInfo) => {
+      console.log('[stage] stage-cleared:', stage, '→ show stage clear modal', starInfo);
       // 1.2s wait — 처치 모션 끝나고 화면 안정 후 모달
       this.time.delayedCall(1200, () => {
         // 1.2s 사이 게임오버 발생 (반격/도트) 시 클리어 모달 X — 게임오버 화면 우선.
         if (this.gameOverActive) return;
-        this.showStageClear(stage);
+        this.showStageClear(stage, starInfo);
       });
     });
 
@@ -626,13 +649,41 @@ export default class GameScene extends Phaser.Scene {
     if (this.player && this.player._updateSynergyTriggers) {
       this.player._updateSynergyTriggers(time);
     }
+    if (this._arenaMode) this._arenaJuiceUpdate(time);
     this.player.updateHpDisplay();
     this.updateInfoText();
     this._updateProgressBar();
   }
 
+  // ⭐ 챕터 2 전용 — 달리기 모션 (상하 바운스 + 발밑 먼지). 시각 효과만, 좌표 로직 무영향.
+  _arenaJuiceUpdate(time) {
+    const sp = this.player && this.player.sprite;
+    if (!sp) return;
+    const vx = (sp.body && sp.body.velocity) ? sp.body.velocity.x : 0;
+    const running = Math.abs(vx) > 5;
+    const baseY = (this._playerBaseY != null) ? this._playerBaseY : sp.y;
+    if (running) {
+      sp.y = baseY + Math.sin(time * 0.025) * 4;     // 달리는 상하 바운스
+      if (time - (this._lastRunDustAt || 0) > 100) { // 발밑 먼지 puff
+        this._lastRunDustAt = time;
+        this._spawnRunDust(sp.x - 16, baseY + 30);
+      }
+    } else {
+      sp.y = baseY;
+    }
+  }
+
+  _spawnRunDust(x, y) {
+    const dust = this.add.circle(x, y, Phaser.Math.Between(3, 5), 0xCBB892, 0.5).setDepth(5);
+    this.tweens.add({
+      targets: dust, x: x - 28, y: y - 6, alpha: 0, scale: 0.3,
+      duration: 420, ease: 'Cubic.easeOut', onComplete: () => dust.destroy(),
+    });
+  }
+
   // === [무한 맵] 진행도 바 UI — 미니멀 ===
   _createProgressBar() {
+    if (this._arenaMode) return;   // ⭐ 챕터 2 아레나 — 진행바 대신 WAVE 카운터 사용.
     const W = this.scale.width;
     const cx = W / 2;
     const y = 72;
@@ -661,6 +712,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   _setupProgressBarMarkers() {
+    if (this._arenaMode) return;   // ⭐ 챕터 2 아레나 — 진행바 마커 없음.
     if (!this.waveSystem || !this.waveSystem.getStageInfo) return;
     const info = this.waveSystem.getStageInfo();
 
@@ -1010,5 +1062,5 @@ export default class GameScene extends Phaser.Scene {
   // 게임 클리어 / 게임 오버 — 본체는 ui/CombatFX.js 로 분리, 이벤트 리스너 호환용 wrapper
   showGameClear(unlockedDifficulty) { fxShowGameClear(this, unlockedDifficulty); }
   showGameOver() { fxShowGameOver(this); }
-  showStageClear(stage) { fxShowStageClear(this, stage); }
+  showStageClear(stage, starInfo) { fxShowStageClear(this, stage, starInfo); }
 }

@@ -139,7 +139,7 @@ export function showGameClear(scene, unlockedDifficulty) {
 
 // === 스테이지 클리어 — 무한 맵 메인보스 처치 시 표시 ===
 // [무한 맵] 스테이지 N 클리어 시 세련된 모달 (1~9스), 10스 = showGameClear (챕터 완료).
-export function showStageClear(scene, stage) {
+export function showStageClear(scene, stage, starInfo = null) {
   scene.gameOverActive = true;  // 게임 멈춤 가드 재활용 (입력 차단)
 
   const W = scene.scale.width;
@@ -174,7 +174,10 @@ export function showStageClear(scene, stage) {
   scene.tweens.add({ targets: beamG, alpha: 1, duration: 600, delay: 200 });
 
   // === [글래스 톤] 클리어 카드 패널 — 스탯 박스 톤 + 골드 광택 강조 ===
-  const cardW = 460, cardH = 320;
+  // ⭐ 챕터 2 클리어 — 별점 블록 공간 확보 (그 외 챕터는 기존 높이 유지).
+  const hasStars = !!(starInfo && starInfo.best);
+  const STAR_BLOCK_H = 70;
+  const cardW = 460, cardH = 320 + (hasStars ? STAR_BLOCK_H : 0);
   const cardG = scene.add.graphics().setDepth(2402).setScrollFactor(0);
   cardG.fillStyle(0x000000, 0.65);
   cardG.fillRoundedRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH, 10);
@@ -210,13 +213,51 @@ export function showStageClear(scene, stage) {
   title.alpha = 0;
   scene.tweens.add({ targets: title, alpha: 1, duration: 500, delay: 700 });
 
+  // === ⭐ 챕터 2 별점 블록 — 타이틀 아래, 구분선 위 (HP 기준 ★★★) ===
+  if (hasStars) {
+    const best = starInfo.best || 1;
+    const starRowY = titleY + 72;
+    const STAR_GAP = 46;
+    for (let i = 0; i < 3; i++) {
+      const earned = i < best;
+      const st = addText(scene, cx + (i - 1) * STAR_GAP, starRowY, earned ? '★' : '☆', {
+        fontFamily: FONT, fontSize: '34px',
+        color: earned ? '#FFD166' : '#5A5A62', fontStyle: '900',
+      }).setOrigin(0.5).setDepth(2403).setScrollFactor(0);
+      if (earned) st.setShadow(0, 0, '#C5A059', 10, true, true);
+      st.alpha = 0; st.setScale(0.4);
+      scene.tweens.add({
+        targets: st, alpha: 1, scale: 1,
+        duration: 380, delay: 850 + i * 170, ease: 'Back.easeOut',
+      });
+    }
+    // 누적 별 + 신기록 / 보상 상자 개봉 안내 라인
+    const total = starInfo.total || 0;
+    let sub = `별 ${total} / 30`;
+    let subColor = '#9A9AA2';
+    if (starInfo.openableChests > 0) {
+      sub = `🎁 보상 상자 개봉 가능!   ·   별 ${total} / 30`;
+      subColor = '#FFD166';
+    } else if (starInfo.improved) {
+      sub = `신기록!   ·   별 ${total} / 30`;
+      subColor = '#A4D86E';
+    }
+    const subTxt = addText(scene, cx, starRowY + 30, sub, {
+      fontFamily: FONT, fontSize: '16px', color: subColor, fontStyle: '700',
+    }).setOrigin(0.5).setDepth(2403).setScrollFactor(0);
+    subTxt.setShadow(1, 1, '#000000', 2, false, true);
+    subTxt.alpha = 0;
+    scene.tweens.add({ targets: subTxt, alpha: 1, duration: 400, delay: 1380 });
+  }
+
   // === 구분선 ===
+  const extra = hasStars ? STAR_BLOCK_H : 0;
   const divG = scene.add.graphics().setDepth(2403).setScrollFactor(0);
   divG.lineStyle(1, 0xC5A059, 0.4);
-  divG.lineBetween(cx - cardW / 2 + 40, titleY + 80, cx + cardW / 2 - 40, titleY + 80);
+  divG.lineBetween(cx - cardW / 2 + 40, titleY + 80 + extra, cx + cardW / 2 - 40, titleY + 80 + extra);
 
   // === 통계 ===
-  const statY = titleY + 110;
+  const statY = titleY + 110 + extra;
   const lineH = 32;
   const drawStat = (idx, label, value, valueColor = '#FFD166') => {
     const y = statY + idx * lineH;

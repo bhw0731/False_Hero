@@ -7,6 +7,7 @@ import { gameSettings, getAvailableChapters, difficultyLabels } from '../data/se
 import { FONT } from '../ui/theme.js';
 import { sound } from '../systems/SoundManager.js';
 import { getDiamonds, isEquipmentUnlocked } from '../data/diamonds.js';
+import { STAR_CHAPTER, getStageStars, getTotalStars, MAX_TOTAL_STARS, getChests, getChestState, openChest, CHEST_STATE } from '../data/chapterStars.js';
 import { showLoadout } from '../ui/EquipmentLoadoutModal.js';
 import { applyNearestToPixelTextures } from '../data/spriteOptions.js';
 import { attachTouchFeedback } from '../ui/touchFeedback.js';
@@ -125,8 +126,10 @@ export default class StageScene extends Phaser.Scene {
       if (!sel) return;
       const ref = this._currentNodeRefs[sel.stageIndex - 1];
       // 클리어된 스테이지 / 잠긴 난이도 → 진입 차단 (되돌아가기 방지)
+      // ⭐ 단, 챕터 2(STAR_CHAPTER)는 별 갱신을 위해 클리어 스테이지 재도전 허용.
       if (!this._isTest) {
-        if (ref && ref.isCleared) return;
+        const isCh2 = sel.difficulty === STAR_CHAPTER;
+        if (ref && ref.isCleared && !isCh2) return;
         if (ref && !ref.isStageUnlocked) return;   // 이전 스테이지 미클리어 — 진입 차단.
         if (this._isDifficultyLocked(sel.difficulty)) return;
       }
@@ -254,6 +257,9 @@ export default class StageScene extends Phaser.Scene {
     this._diffElements.forEach(el => { if (el && el.destroy) el.destroy(); });
     this._diffElements = [];
     this._currentNodeRefs = [];
+    // ⭐ 챕터 2 보상 상자 요소도 정리 (챕터 전환 시 잔존 방지).
+    if (this._chestElements) this._chestElements.forEach(el => { if (el && el.destroy) el.destroy(); });
+    this._chestElements = [];
 
     const diff = this.currentDifficulty;
     const isUnlocked = this._isTest || !this._isDifficultyLocked(diff);
@@ -285,6 +291,18 @@ export default class StageScene extends Phaser.Scene {
       const canRight = this.currentDifficultyIndex < chapters.length - 1;
       this._chapterRightArrow.setAlpha(canRight ? 1 : 0.25);
       if (this._chapterRightArrow.input) this._chapterRightArrow.input.enabled = canRight;
+    }
+
+    // ⭐ 챕터 2 전용 — 누적 별 카운터 + 보상 상자 행 (상단 가운데).
+    if (diff === STAR_CHAPTER) {
+      const total = getTotalStars();
+      const starTotal = this.add.text(this.scale.width * 0.5, 58,
+        `★ ${total} / ${MAX_TOTAL_STARS}`, {
+          fontFamily: FONT, fontSize: '17px', color: '#1a0f08', fontStyle: '900', letterSpacing: 1,
+        }).setOrigin(0.5, 0.5).setDepth(900);
+      starTotal.setShadow(1, 1, '#e8d4a8', 3, false, true);
+      this._diffElements.push(starTotal);
+      this._renderChapter2Chests();
     }
 
     // 노드 라인
@@ -444,10 +462,29 @@ export default class StageScene extends Phaser.Scene {
       // 이름은 노드별로 안 그림 — 선택된 노드만 _selectedNameText 에 표시 (모바일 가독성)
       const nameText = null;
 
+      // ⭐ 챕터 2 전용 — 노드 위 3성 표시 (양피지 황금 톤). 잠긴+기록없음이면 생략.
+      if (diff === STAR_CHAPTER) {
+        const earnedStars = getStageStars(stage);
+        const showStarRow = isUnlocked && (stageUnlocked || stageCleared || earnedStars > 0);
+        if (showStarRow) {
+          const SGAP = 13;
+          const sy = y - NODE_R * nodeScale - 18;
+          for (let k = 0; k < 3; k++) {
+            const got = k < earnedStars;
+            const sTxt = this.add.text(x + (k - 1) * SGAP, sy, got ? '★' : '☆', {
+              fontFamily: FONT, fontSize: '13px',
+              color: got ? '#f4d160' : '#7a5a32', fontStyle: '900',
+            }).setOrigin(0.5).setDepth(104);
+            sTxt.setShadow(1, 1, '#2a1505', 2, false, true);
+            this._diffElements.push(sTxt);
+          }
+        }
+      }
+
       this._diffElements.push(node, fillCircle, numText);
 
-      // 진입 가능 = 잠금 해제됨 + 미클리어. 클리어된 스테이지는 되돌아가기 차단.
-      const isPlayable = isUnlocked && stageUnlocked && !stageCleared;
+      // 진입 가능 = 잠금 해제됨 + 미클리어. (⭐ 챕터 2는 클리어 스테이지도 재도전 가능.)
+      const isPlayable = isUnlocked && stageUnlocked && (!stageCleared || diff === STAR_CHAPTER);
 
       const ref = {
         node, fillCircle, nameText, numText,
@@ -474,6 +511,93 @@ export default class StageScene extends Phaser.Scene {
         this._applySelection();
       });
     }
+  }
+
+  // ⭐ 챕터 2 보상 상자 행 — ★10/20/30 도달 시 개봉 가능. 탭하면 💎 수령.
+  //   상태: locked(별 부족) / openable(개봉 가능, 펄스+흔들) / opened(수령 완료, ✓).
+  _renderChapter2Chests() {
+    if (this._chestElements) this._chestElements.forEach(el => { if (el && el.destroy) el.destroy(); });
+    this._chestElements = [];
+    const W = this.scale.width;
+    const total = getTotalStars();
+    const chests = getChests();
+    const cy = 92;
+    const gap = 116;
+    const startX = W * 0.5 - gap * (chests.length - 1) / 2;
+
+    chests.forEach((chest, i) => {
+      const cx = startX + i * gap;
+      const state = getChestState(chest.need, total);
+      const opened   = state === CHEST_STATE.OPENED;
+      const openable = state === CHEST_STATE.OPENABLE;
+
+      // 개봉 가능 — 뒤에 황금 펄스 링.
+      if (openable) {
+        const ring = this.add.circle(cx, cy, 20, 0xd4a942, 0.45).setDepth(108);
+        this.tweens.add({
+          targets: ring, alpha: { from: 0.5, to: 0.12 }, scale: { from: 1, to: 1.4 },
+          duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        });
+        this._chestElements.push(ring);
+      }
+
+      // 상자 아이콘 — 게임 보물상자 톤(🎁) 통일.
+      const icon = this.add.text(cx, cy, '🎁', { fontFamily: FONT, fontSize: '30px' })
+        .setOrigin(0.5).setDepth(110)
+        .setAlpha(opened ? 0.45 : (openable ? 1 : 0.4));
+      this._chestElements.push(icon);
+
+      // 수령 완료 ✓.
+      if (opened) {
+        const check = this.add.text(cx + 12, cy - 10, '✓', {
+          fontFamily: FONT, fontSize: '18px', color: '#6b8e23', fontStyle: '900',
+        }).setOrigin(0.5).setDepth(111);
+        check.setShadow(1, 1, '#1a2a05', 2, false, true);
+        this._chestElements.push(check);
+      }
+
+      // 라벨 — 요구 별 / 상태.
+      const labelText = opened ? '완료' : (openable ? '개봉!' : `★${chest.need}`);
+      const labelColor = opened ? '#5c4a2f' : (openable ? '#8b6914' : '#5c3a1f');
+      const label = this.add.text(cx, cy + 24, labelText, {
+        fontFamily: FONT, fontSize: '13px', color: labelColor, fontStyle: '900', letterSpacing: 1,
+      }).setOrigin(0.5).setDepth(110);
+      label.setShadow(1, 1, '#e8d4a8', 2, false, true);
+      this._chestElements.push(label);
+
+      // 개봉 가능 — 살짝 흔들 + 탭 처리.
+      if (openable) {
+        this.tweens.add({
+          targets: icon, y: { from: cy - 2, to: cy + 2 },
+          duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+        });
+        const hit = this.add.zone(cx, cy, 56, 60).setOrigin(0.5)
+          .setInteractive({ useHandCursor: true }).setDepth(112);
+        hit.on('pointerdown', () => {
+          this.tweens.add({ targets: icon, scale: { from: 1, to: 1.25 }, duration: 100, yoyo: true });
+        });
+        hit.on('pointerup', () => this._openChest(chest.need, cx, cy));
+        this._chestElements.push(hit);
+      }
+    });
+  }
+
+  // 상자 열기 — 💎 지급 + 플로팅 표시 + 카운터/행 갱신.
+  _openChest(need, cx, cy) {
+    const reward = openChest(need);
+    if (!reward) return;
+    try { if (sound.treasureOpen) sound.treasureOpen(); } catch {}
+    const float = this.add.text(cx, cy - 8, `💎 +${reward}`, {
+      fontFamily: FONT, fontSize: '20px', color: '#7EE7FF', fontStyle: '900', letterSpacing: 1,
+    }).setOrigin(0.5).setDepth(2000);
+    float.setShadow(1, 1, '#000000', 3, false, true);
+    this.tweens.add({
+      targets: float, y: cy - 48, alpha: { from: 1, to: 0 },
+      duration: 1100, ease: 'Sine.easeOut',
+      onComplete: () => { try { float.destroy(); } catch {} },
+    });
+    // 열린 상태 반영.
+    this._renderChapter2Chests();
   }
 
   _pickDefaultStageInDifficulty(diff) {
@@ -561,6 +685,11 @@ export default class StageScene extends Phaser.Scene {
     const stageLocked = ref && !ref.isStageUnlocked;
     const diffLocked = !this._isTest && this._isDifficultyLocked(sel.difficulty);
     if (isCleared && !this._isTest) {
+      // ⭐ 챕터 2 — 별 갱신용 재도전 허용 (잠금 아님). 그 외 챕터는 정복 완료로 진입 차단.
+      if (sel.difficulty === STAR_CHAPTER) {
+        t.setColor('#f4d160').setText('▸ 재도전');
+        return;
+      }
       t.setColor(COL_DISABLED).setText('— 정복 완료 —');
       return;
     }

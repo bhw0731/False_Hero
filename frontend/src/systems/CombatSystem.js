@@ -8,6 +8,8 @@
 import Phaser from 'phaser';
 import { sound } from './SoundManager.js';
 import { addDiamonds } from '../data/diamonds.js';
+import { gameSettings } from '../data/settings.js';
+import { STAR_CHAPTER } from '../data/chapterStars.js';
 
 // [Phase K] 이속 폐기 — engagementDelay 고정값 800ms (모든 엔티티 동일).
 const BASE_ENGAGEMENT_DELAY = 800;
@@ -254,12 +256,70 @@ export default class CombatSystem {
     _backupTimer = this.scene.time.delayedCall(1200, safeDestroy);
   }
 
+  // ⭐ 챕터 2 전용 — 공격 임팩트 (런지 + 흰 플래시 + 슬래시 호 + 스파크 + 치명타 카메라 흔들).
+  _arenaAttackImpact(target, isCrit) {
+    const sc = this.scene;
+    const DEPTH = 1200;
+    // 플레이어 런지 — 앞으로 살짝 늘어났다 복귀 (스쿼시).
+    const psp = this.player && this.player.sprite;
+    if (psp) {
+      const bsx = psp.scaleX, bsy = psp.scaleY;
+      sc.tweens.add({
+        targets: psp, scaleX: bsx * 1.08, scaleY: bsy * 0.94,
+        duration: 70, yoyo: true, ease: 'Quad.easeOut',
+      });
+    }
+    if (!target || !target.sprite) return;
+    const tx = target.sprite.x;
+    const ty = target.sprite.y - 10;
+
+    // 흰 플래시 — 타격점 확장.
+    const flash = sc.add.circle(tx, ty, 8, 0xFFFFFF, 0.9).setDepth(DEPTH);
+    sc.tweens.add({
+      targets: flash, scale: isCrit ? 3.2 : 2.2, alpha: 0,
+      duration: 180, ease: 'Cubic.easeOut', onComplete: () => flash.destroy(),
+    });
+
+    // 슬래시 호 — 베는 궤적.
+    const slash = sc.add.graphics().setDepth(DEPTH);
+    slash.setPosition(tx, ty);
+    slash.lineStyle(isCrit ? 5 : 3, 0xFFF3C0, 0.95);
+    slash.beginPath();
+    slash.arc(0, 0, isCrit ? 34 : 24, Phaser.Math.DegToRad(-55), Phaser.Math.DegToRad(60));
+    slash.strokePath();
+    sc.tweens.add({
+      targets: slash, scaleX: 1.35, scaleY: 1.35, alpha: 0,
+      duration: 160, ease: 'Cubic.easeOut', onComplete: () => slash.destroy(),
+    });
+
+    // 스파크.
+    const sparks = isCrit ? 6 : 4;
+    for (let i = 0; i < sparks; i++) {
+      const ang = Phaser.Math.FloatBetween(-Math.PI * 0.65, Math.PI * 0.2);
+      const len = Phaser.Math.Between(16, 30);
+      const s = sc.add.rectangle(tx, ty, 3, 3, 0xFFE08A, 1).setDepth(DEPTH);
+      sc.tweens.add({
+        targets: s, x: tx + Math.cos(ang) * len, y: ty + Math.sin(ang) * len, alpha: 0,
+        duration: Phaser.Math.Between(160, 260), ease: 'Cubic.easeOut',
+        onComplete: () => s.destroy(),
+      });
+    }
+
+    // 치명타만 — 미세 카메라 흔들.
+    if (isCrit && sc.cameras && sc.cameras.main) sc.cameras.main.shake(90, 0.004);
+  }
+
   // 플레이어 공격 실행
   executePlayerAttack(time, primaryTarget) {
     // Phase 2 시너지 (질투/분노_질투/오만_질투) — 동적 D타입 효과용 targetEnemy 전달
     const result = this.player.attack(time, primaryTarget);
     // result = { damage, isCrit, isAreaAttack, areaRange }
     sound.playerAttack();
+
+    // ⭐ 챕터 2 전용 — 공격 임팩트 연출 (타르타르 느낌). 그 외 챕터 무영향.
+    if ((gameSettings && gameSettings.difficulty) === STAR_CHAPTER) {
+      this._arenaAttackImpact(primaryTarget, result.isCrit);
+    }
 
     // 폭발 일격 패시브 — 매 5번째 공격은 광역 (50% 스플래시)
     if (this.player.hasPassive('explosive-strike')) {
