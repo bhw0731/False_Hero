@@ -109,7 +109,8 @@ export function getNextLevelCost(level) {
 
 // 슬롯 Lv N 의 누적 effect — { stat: total_delta } 형식 반환.
 // Player.applyLoadout 가 이걸로 stats 에 modStat('equipment', delta) 적용.
-export function getSlotEffect(slot, level) {
+//   awakenTier(0~10) 가 있으면 각성/초월 배율을 전체 stat 에 곱함 (% 증폭).
+export function getSlotEffect(slot, level, awakenTier = 0) {
   const tier = SLOT_TIERS[slot];
   if (!tier || level <= 0) return {};
   const eff = {};
@@ -120,6 +121,15 @@ export function getSlotEffect(slot, level) {
     const sec = tier.secondary;
     const secLevels = level - sec.threshold + 1;
     eff[sec.stat] = (eff[sec.stat] || 0) + sec.perLevel * secLevels;
+  }
+  // 각성/초월 배율 — Lv10(MAX_LEVEL) 풀강일 때만 의미 있음.
+  const mult = getAwakenMultiplier(awakenTier);
+  if (mult !== 1) {
+    for (const k of Object.keys(eff)) {
+      const v = eff[k] * mult;
+      // 정수 stat 은 정수로, 비율 stat 은 소수 유지.
+      eff[k] = Number.isInteger(eff[k]) ? Math.round(v) : v;
+    }
   }
   return eff;
 }
@@ -146,4 +156,72 @@ export function getLevelDelta(slot, fromLevel) {
     }
   }
   return eff;
+}
+
+// =====================================================================
+// [P-68] 각성(★) / 초월(✦) — Lv10 풀강 슬롯의 추가 단계.
+//   awakenTier 통합 0~10:  1~5 = ★각성,  6~10 = ✦초월.
+//   효과: 슬롯의 getSlotEffect 전체 값에 배율(multiplier)을 곱함 (% 증폭).
+//   재료: ★ = 각성석(awakenStone), ✦ = 초월석(transcendStone).
+//   도박: 확률 성공, 실패 시 단계 1 하락 (재료 소모 + 별 -1, 최저 0).
+// =====================================================================
+
+export const AWAKEN_STAR_MAX  = 5;    // ★1~5
+export const AWAKEN_TIER_MAX  = 10;   // ★5(=5) 이후 ✦1~5(=6~10)
+
+// 통합 tier 가 초월 구간(6~10)인지.
+export function isTranscendTier(awakenTier) {
+  return awakenTier > AWAKEN_STAR_MAX;
+}
+
+// awakenTier → 스탯 배율. tier 0 = 1.0 (각성 전), 단계당 +0.10. ✦5 = ×2.0.
+export function getAwakenMultiplier(awakenTier) {
+  const t = Math.max(0, Math.min(AWAKEN_TIER_MAX, awakenTier | 0));
+  return 1 + t * 0.10;
+}
+
+// 현재 tier(curTier, 0~9) 기준 다음 단계 성공 확률 (0~1).
+const _AWAKEN_RATES = [
+  0.80,  // 0 → ★1
+  0.65,  // ★1 → ★2
+  0.50,  // ★2 → ★3
+  0.35,  // ★3 → ★4
+  0.25,  // ★4 → ★5
+  0.20,  // ★5 → ✦1
+  0.17,  // ✦1 → ✦2
+  0.14,  // ✦2 → ✦3
+  0.11,  // ✦3 → ✦4
+  0.08,  // ✦4 → ✦5
+];
+export function getAwakenSuccessRate(curTier) {
+  if (curTier < 0 || curTier >= AWAKEN_TIER_MAX) return 0;
+  return _AWAKEN_RATES[curTier] != null ? _AWAKEN_RATES[curTier] : 0.05;
+}
+
+// 현재 tier 기준 한 번 시도에 드는 재료 — { id, amount }.
+//   ★ 구간(0~4) = 각성석,  ✦ 구간(5~9) = 초월석.
+const _AWAKEN_MAT_AMOUNT  = [1, 1, 2, 2, 3];   // ★ 구간 (curTier 0~4)
+const _TRANSCEND_MAT_AMOUNT = [1, 2, 2, 3, 3]; // ✦ 구간 (curTier 5~9)
+export function getAwakenCost(curTier) {
+  if (curTier < 0 || curTier >= AWAKEN_TIER_MAX) return null;
+  if (curTier < AWAKEN_STAR_MAX) {
+    return { id: 'awakenStone', amount: _AWAKEN_MAT_AMOUNT[curTier] };
+  }
+  return { id: 'transcendStone', amount: _TRANSCEND_MAT_AMOUNT[curTier - AWAKEN_STAR_MAX] };
+}
+
+// awakenTier → 표시 라벨 (강화 'Lv N/10' 처럼 현재/최대 표기).
+//   0 = '' (각성 전), 1~5 = '★ N/5', 6~10 = '✦ N/5'.
+export function getAwakenLabel(awakenTier) {
+  const t = awakenTier | 0;
+  if (t <= 0) return '';
+  if (t <= AWAKEN_STAR_MAX) return `★ ${t}/${AWAKEN_STAR_MAX}`;
+  return `✦ ${t - AWAKEN_STAR_MAX}/${AWAKEN_STAR_MAX}`;
+}
+
+// 다음 단계 라벨 (UI 버튼용). 만렙이면 null.
+export function getNextAwakenLabel(awakenTier) {
+  const t = awakenTier | 0;
+  if (t >= AWAKEN_TIER_MAX) return null;
+  return getAwakenLabel(t + 1);
 }

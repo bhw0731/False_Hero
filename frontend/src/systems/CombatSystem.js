@@ -9,7 +9,6 @@ import Phaser from 'phaser';
 import { sound } from './SoundManager.js';
 import { addDiamonds } from '../data/meta/diamonds.js';
 import { gameSettings } from '../data/settings.js';
-import { STAR_CHAPTER } from '../data/meta/chapterStars.js';
 import { awardBossMaterials } from '../data/meta/materials.js';
 import { DIFFICULTY_ORDER } from '../data/settings.js';
 
@@ -318,10 +317,8 @@ export default class CombatSystem {
     // result = { damage, isCrit, isAreaAttack, areaRange }
     sound.playerAttack();
 
-    // ⭐ 챕터 2 전용 — 공격 임팩트 연출 (타르타르 느낌). 그 외 챕터 무영향.
-    if ((gameSettings && gameSettings.difficulty) === STAR_CHAPTER) {
-      this._arenaAttackImpact(primaryTarget, result.isCrit);
-    }
+    // ⭐ 전 챕터 — 공격 임팩트 연출 (런지 + 플래시 + 슬래시 + 스파크).
+    this._arenaAttackImpact(primaryTarget, result.isCrit);
 
     // 폭발 일격 패시브 — 매 5번째 공격은 광역 (50% 스플래시)
     if (this.player.hasPassive('explosive-strike')) {

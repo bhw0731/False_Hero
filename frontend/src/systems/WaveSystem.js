@@ -158,7 +158,9 @@ export default class WaveSystem {
   //   잡몹 웨이브 N개 + 마지막 보스 웨이브. 모든 처리 챕터 2(hard)에서만.
   // ============================================================
   _isArena() {
-    return (gameSettings && gameSettings.difficulty) === STAR_CHAPTER;
+    // 아레나(웨이브) 모드 비활성 — 전 챕터를 1챕터처럼 행군 모드로 통일.
+    //   (되살리려면: return (gameSettings && gameSettings.difficulty) === STAR_CHAPTER;)
+    return false;
   }
 
   _enterStageArena() {
@@ -455,11 +457,25 @@ export default class WaveSystem {
     const maxX = main.sprite.x - NPC_BEFORE_BOSS - 200;
     if (maxX - minX < 500) return;  // 너무 좁으면 skip
 
-    // [Phase P-54] 기존 적/이벤트 위치 수집 (엘리트 위치 조정용 — 겹침 방지)
+    // [Phase P-54] 기존 적 위치 수집 (엘리트 위치 조정용 — 겹침 방지)
     const occupiedX = this.enemies
       .filter(e => e.sprite)
       .map(e => ({ x: e.sprite.x, halfW: (e.size || 48) / 2 }));
     const MIN_GAP = 90;  // 엘리트(64) + 일반(48) 평균 + 여유
+
+    // [겹침 방지] 이벤트 노드 / 매점 NPC 예약 좌표도 회피 — 아직 생성 전이지만 위치가
+    //   결정론적(_spawnEventNodes / _enterStage 와 동일 공식)이라 미리 계산해 비켜감.
+    const sub2 = this.subBosses[1];
+    const elite = this.eliteBoss;
+    const bossesAll = [sub1, sub2, sub3, elite, main];
+    // 신의 시험 (시작 직후).
+    occupiedX.push({ x: PLAYER_START_X + 80, halfW: 40 });
+    bossesAll.forEach(b => {
+      if (b && b.sprite) occupiedX.push({ x: b.sprite.x - NPC_BEFORE_BOSS, halfW: 40 });  // 매점 NPC
+    });
+    [sub1, sub2, sub3, elite].forEach(b => {
+      if (b && b.sprite) occupiedX.push({ x: b.sprite.x + 120, halfW: 40 });  // 보물상자
+    });
 
     for (let i = 0; i < ELITE_MOB_COUNT; i++) {
       const baseId = pool[Math.floor(Math.random() * pool.length)];
@@ -676,15 +692,13 @@ export default class WaveSystem {
     //   옛 로직: proceedToNextStage 안에서만 mark → 메뉴 복귀 시 진행도 손실.
     this._markStageCleared(this.currentStage);
 
-    // ⭐ 챕터 2('hard') 전용 — 별점 평가(HP 기준) + 별도 저장. 보상 상자는 지도에서 수동 개봉.
-    //   다른 챕터는 starInfo = null 로 기존 클리어 모달 그대로.
+    // ⭐ 전 챕터 — 별점 평가(HP 기준) + 챕터별 저장. 보상 상자는 지도에서 수동 개봉.
     let starInfo = null;
-    const diff = (gameSettings && gameSettings.difficulty) || 'normal';
-    if (diff === STAR_CHAPTER) {
+    {
       const maxHp = (this.player.getStat ? this.player.getStat('maxHp') : this.player.stats.maxHp) || 1;
       const hpRatio = Math.max(0, (this.player.stats.hp || 0) / maxHp);
       const stars = computeStars(hpRatio);
-      const rec = recordStageStars(this.currentStage, stars);
+      const rec = recordStageStars(this.currentStage, stars);   // 현재 난이도 버킷.
       const total = getTotalStars();
       starInfo = {
         stars,                               // 이번 클리어에서 획득한 별.
@@ -692,8 +706,8 @@ export default class WaveSystem {
         prevBest: rec.prev,                  // 직전 최고 기록.
         improved: rec.improved,              // 기록 갱신 여부.
         hpRatio,
-        total,                               // 챕터 2 누적 별 (0~30).
-        openableChests: getOpenableChests(total).length,   // 개봉 가능한 보상 상자 수 (지도에서 열기).
+        total,                               // 이 챕터 누적 별 (0~30).
+        openableChests: getOpenableChests().length,   // 개봉 가능한 보상 상자 수 (지도에서 열기).
       };
     }
 

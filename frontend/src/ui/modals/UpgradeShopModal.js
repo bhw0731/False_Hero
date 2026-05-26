@@ -8,12 +8,16 @@ import { addText, FONT } from '../theme.js';
 import {
   getDiamonds,
   getSlotLevels, upgradeSlot, getUpgradeOdds,
-  devResetPurchases,
+  getSlotAwakenAll, getAwakenOdds, upgradeSlotAwaken,
+  devResetPurchases, devMaxSlot,
 } from '../../data/meta/diamonds.js';
 import { gameSettings } from '../../data/settings.js';
-import { getMaterials } from '../../data/meta/materials.js';
+import { getMaterials, MATERIALS } from '../../data/meta/materials.js';
 import { SLOTS, SLOT_LABELS } from '../../data/items.js';
-import { MAX_LEVEL, getNextLevelCost, getSlotEffect, getSlotMeta } from '../../data/meta/loadoutUpgrades.js';
+import {
+  MAX_LEVEL, getNextLevelCost, getSlotEffect, getSlotMeta,
+  AWAKEN_TIER_MAX, getAwakenLabel, getNextAwakenLabel, getAwakenMultiplier,
+} from '../../data/meta/loadoutUpgrades.js';
 
 const COLOR_DIAMOND     = '#FFD166';
 const COLOR_TEXT_PRI    = '#E8E8E8';
@@ -217,23 +221,86 @@ export function showUpgradeShop(scene, options = {}) {
     });
   };
 
-  // [P-65] 강화 성공/실패 연출.
-  const _flashUpgradeResult = (x, y, success) => {
-    const label = success ? '강화 성공!' : '강화 실패…';
-    const color = success ? '#34D399' : '#F87171';
-    const toast = addText(scene, x, y, label, {
-      fontFamily: FONT, fontSize: '26px', color, fontStyle: '900',
-      stroke: '#000000', strokeThickness: 4,
-    }).setOrigin(0.5).setDepth(1100);
-    modal.body.add(toast);
-    toast.setScale(0.6);
-    scene.tweens.add({
-      targets: toast, scale: 1.0, duration: 180, ease: 'Back.easeOut',
-    });
-    scene.tweens.add({
-      targets: toast, y: y - 36, alpha: 0, duration: 900, delay: 300, ease: 'Sine.easeIn',
-      onComplete: () => toast.destroy(),
-    });
+  // [P-65] 강화 결과 토스트 (플로팅 결과 텍스트). [P-68] 각성/초월 커스텀 라벨.
+  //   성공: 금빛 광륜 + 팝 + 사방 반짝임.  실패: 붉은 흔들림 + 수축하는 잔불.
+  const _flashUpgradeResult = (x, y, success, successLabel = '강화 성공!', failLabel = '강화 실패…') => {
+    const label = success ? successLabel : failLabel;
+    // 연출 요소를 한 컨테이너에 모아 함께 정리.
+    const fxC = scene.add.container(x, y).setDepth(1100);
+    modal.body.add(fxC);
+
+    if (success) {
+      const GOLD = 0xFFD166;
+      // 뒤로 퍼지는 광륜.
+      const ring = scene.add.circle(0, 0, 16, GOLD, 0).setStrokeStyle(3, GOLD, 0.9);
+      fxC.add(ring);
+      scene.tweens.add({ targets: ring, scale: 5.5, alpha: 0, duration: 640, ease: 'Cubic.easeOut' });
+      // 부드러운 광채.
+      const glow = scene.add.circle(0, 0, 30, GOLD, 0.30);
+      fxC.add(glow);
+      scene.tweens.add({ targets: glow, scale: 2.6, alpha: 0, duration: 560, ease: 'Sine.easeOut' });
+      // 사방으로 튀는 반짝임(작은 빛 알갱이).
+      const N = 9;
+      for (let i = 0; i < N; i++) {
+        const ang = (Math.PI * 2 * i) / N + Math.random() * 0.4;
+        const dist = 52 + Math.random() * 22;
+        const mote = scene.add.circle(0, 0, 3, 0xFFF1C2, 1);
+        fxC.add(mote);
+        scene.tweens.add({
+          targets: mote, x: Math.cos(ang) * dist, y: Math.sin(ang) * dist,
+          scale: 0, alpha: 0, duration: 560, delay: 40, ease: 'Cubic.easeOut',
+        });
+      }
+      // 텍스트 — 금빛 글로우 + 팝 바운스.
+      const txt = addText(scene, 0, 0, label, {
+        fontFamily: FONT, fontSize: '30px', color: '#FFE9B5', fontStyle: '900',
+        stroke: '#3A2A12', strokeThickness: 5,
+      }).setOrigin(0.5);
+      txt.setShadow(0, 0, '#FFD166', 14, false, true);
+      fxC.add(txt);
+      txt.setScale(0.4);
+      scene.tweens.add({
+        targets: txt, scale: 1.14, duration: 230, ease: 'Back.easeOut',
+        onComplete: () => scene.tweens.add({ targets: txt, scale: 1.0, duration: 130, ease: 'Sine.easeOut' }),
+      });
+      scene.tweens.add({ targets: txt, y: -44, alpha: 0, duration: 720, delay: 560, ease: 'Sine.easeIn' });
+      scene.time.delayedCall(1400, () => { if (fxC && fxC.active) fxC.destroy(); });
+
+    } else {
+      const EMBER = 0xC65B3C;   // 식어가는 잔불 (어두운 주황).
+      const SMOKE = 0x4A4A52;   // 잿빛 연기.
+      // 잿빛 연기 — 위로 번지며 사라짐.
+      const smoke = scene.add.circle(0, -2, 26, SMOKE, 0.34);
+      fxC.add(smoke);
+      scene.tweens.add({ targets: smoke, scale: 2.3, y: -30, alpha: 0, duration: 780, ease: 'Sine.easeOut' });
+      // 아래로 흩어져 떨어지는 재.
+      const N = 7;
+      for (let i = 0; i < N; i++) {
+        const spread = (Math.random() - 0.5) * 64;
+        const ember = scene.add.circle(spread * 0.25, -2, 2 + Math.random() * 1.6, EMBER, 0.9);
+        fxC.add(ember);
+        scene.tweens.add({
+          targets: ember, x: spread, y: 34 + Math.random() * 26,
+          alpha: 0, duration: 620 + Math.random() * 220, delay: 50, ease: 'Quad.easeIn',
+        });
+      }
+      // 텍스트 — 위에서 쿵 떨어지는 임팩트(스쿼시) 후 식으며 가라앉음.
+      const txt = addText(scene, 0, -18, label, {
+        fontFamily: FONT, fontSize: '28px', color: '#E08A8A', fontStyle: '900',
+        stroke: '#000000', strokeThickness: 5,
+      }).setOrigin(0.5);
+      txt.setShadow(2, 2, '#000000', 4, false, true);
+      fxC.add(txt);
+      txt.setScale(1.22).setAlpha(0);
+      // 떨어지며 등장 → 착지 시 세로 압축 → 원상.
+      scene.tweens.add({
+        targets: txt, y: 0, alpha: 1, scaleX: 1.0, scaleY: 0.86, duration: 190, ease: 'Quad.easeIn',
+        onComplete: () => scene.tweens.add({ targets: txt, scaleY: 1.0, duration: 130, ease: 'Back.easeOut' }),
+      });
+      // 잠시 후 가라앉으며 소멸.
+      scene.tweens.add({ targets: txt, y: 18, alpha: 0, duration: 580, delay: 560, ease: 'Sine.easeIn' });
+      scene.time.delayedCall(1340, () => { if (fxC && fxC.active) fxC.destroy(); });
+    }
   };
 
   // === 영구 강화 탭 — 제거됨 (추후 도전과제 시스템으로 대체 예정).
@@ -244,6 +311,7 @@ export function showUpgradeShop(scene, options = {}) {
 
   const _renderItemsTab = () => {
     const levels = getSlotLevels();
+    const awakenAll = getSlotAwakenAll();   // [P-68] 슬롯별 각성/초월 단계.
     const { bw, bh, bcy } = _bodyBox();
     const bg = scene.add.image(0, bcy, 'ui-upgrade-equipment');
     bg.setDisplaySize(bw, bh);
@@ -293,9 +361,12 @@ export function showUpgradeShop(scene, options = {}) {
       lblL.setShadow(1, 1, '#000000', 2, false, true);
       _addEl(lblL);
 
-      const lvT = addText(scene, fr.cx + fr.w / 2 - 32, fr.cy, `Lv ${lv}/${MAX_LEVEL}`, {
+      const slotAwaken = awakenAll[slot] || 0;
+      const lvLabel = slotAwaken > 0 ? getAwakenLabel(slotAwaken) : `Lv ${lv}/${MAX_LEVEL}`;
+      const lvColor = slotAwaken > 0 ? '#C9A0FF' : (lv > 0 ? tier.hex : '#7A7A82');
+      const lvT = addText(scene, fr.cx + fr.w / 2 - 32, fr.cy, lvLabel, {
         fontFamily: FONT, fontSize: '14px',
-        color: lv > 0 ? tier.hex : '#7A7A82', fontStyle: '900',
+        color: lvColor, fontStyle: '900',
       }).setOrigin(1, 0.5);
       lvT.setShadow(1, 1, '#000000', 2, false, true);
       _addEl(lvT);
@@ -319,6 +390,9 @@ export function showUpgradeShop(scene, options = {}) {
     const cost = getNextLevelCost(lv);
     const canAfford = cost != null && getDiamonds() >= cost;
     const meta = getSlotMeta(slot);
+    // [P-68] 각성/초월 — Lv10 풀강 시에만 의미.
+    const awakenTier = awakenAll[slot] || 0;
+    const isAwakenMax = isMax && awakenTier >= AWAKEN_TIER_MAX;
 
     // 슬롯명 헤더 제거 — 좌측 사이드바 탭에 이미 슬롯명 표시됨.
 
@@ -331,9 +405,13 @@ export function showUpgradeShop(scene, options = {}) {
       boxG.lineStyle(1, 0xFFD166, 0.4);
       boxG.strokeRoundedRect(boxFr.cx - boxFr.w / 2, boxFr.cy - boxFr.h / 2, boxFr.w, boxFr.h, 6);
       _addEl(boxG);
-      // 제목.
-      const titleTxt = addText(scene, boxFr.cx, boxFr.cy - boxFr.h * 0.35, '현재 효과', {
-        fontFamily: FONT, fontSize: '12px', color: '#FFD166', fontStyle: '900', letterSpacing: 2,
+      // 제목 — 각성/초월 중이면 단계·배율 표기.
+      const titleStr = awakenTier > 0
+        ? `현재 효과   ${getAwakenLabel(awakenTier)}  ×${getAwakenMultiplier(awakenTier).toFixed(2)}`
+        : '현재 효과';
+      const titleTxt = addText(scene, boxFr.cx, boxFr.cy - boxFr.h * 0.35, titleStr, {
+        fontFamily: FONT, fontSize: '12px',
+        color: awakenTier > 0 ? '#C9A0FF' : '#FFD166', fontStyle: '900', letterSpacing: 2,
       }).setOrigin(0.5);
       _addEl(titleTxt);
       // 메인.
@@ -358,7 +436,7 @@ export function showUpgradeShop(scene, options = {}) {
     const leftBoxFr  = _frC(0.442, 0.490, 0.215, 0.430);
     const rightBoxFr = _frC(0.818, 0.490, 0.215, 0.430);
 
-    const drawBoxContent = (fr, label, level, dxAdjust = 0) => {
+    const drawBoxContent = (fr, label, level, dxAdjust = 0, awakenT = 0) => {
       const t2 = _lvColor(level);
       // 박스 안 모든 텍스트 살짝 오른쪽으로 시프트 (이미지 frame 중심이 1-2px 오른쪽).
       const TX_DX = 3 + dxAdjust;
@@ -368,13 +446,16 @@ export function showUpgradeShop(scene, options = {}) {
       }).setOrigin(0.5);
       lblT.setShadow(2, 2, '#000000', 3, false, true);
       _addEl(lblT);
-      const lvT = addText(scene, fr.cx + TX_DX, fr.cy - fr.h * 0.15, `Lv ${level}`, {
-        fontFamily: FONT, fontSize: '32px',
-        color: level > 0 ? t2.hex : '#7A7A82', fontStyle: '900',
+      // 각성/초월 중이면 큰 라벨을 ★N / ✦N 으로, 아니면 Lv N.
+      const bigLabel = awakenT > 0 ? getAwakenLabel(awakenT) : `Lv ${level}`;
+      const bigColor = awakenT > 0 ? '#C9A0FF' : (level > 0 ? t2.hex : '#7A7A82');
+      const lvT = addText(scene, fr.cx + TX_DX, fr.cy - fr.h * 0.15, bigLabel, {
+        fontFamily: FONT, fontSize: awakenT > 0 ? '28px' : '32px',
+        color: bigColor, fontStyle: '900',
       }).setOrigin(0.5);
       lvT.setShadow(2, 2, '#000000', 3, false, true);
       _addEl(lvT);
-      const eff = getSlotEffect(slot, level);
+      const eff = getSlotEffect(slot, level, awakenT);
       const keys = Object.keys(eff);
       if (keys.length === 0) {
         _addEl(addText(scene, baseCx, fr.cy + fr.h * 0.05, '— 미강화 —', {
@@ -394,74 +475,53 @@ export function showUpgradeShop(scene, options = {}) {
       }
     };
 
-    drawBoxContent(leftBoxFr,  '현재',  lv, 0);
-    drawBoxContent(rightBoxFr, isMax ? '최대치' : '강화 후', nextLv, -2);
+    // === 비교 박스 + 확률 + 버튼 — Lv0~9 강화(다이아) / Lv10 각성·초월(재료) 분기. ===
+    const btnFr  = _frC(0.620, 0.835, 0.220, 0.075);
+    const oddsFr = _frC(0.620, 0.745, 0.34, 0.05);
+    const fxFr   = _frC(0.620, 0.400, 0.30, 0.05);
 
-    // [P-65] 성공 확률 표시 (버튼 위).
     if (!isMax) {
+      // --- Lv 0~9: 다이아 강화 ---
+      drawBoxContent(leftBoxFr,  '현재',  lv, 0, 0);
+      drawBoxContent(rightBoxFr, '강화 후', nextLv, -2, 0);
+
       const odds = getUpgradeOdds(slot);
       const pct = Math.round(odds.rate * 100);
-      const oddsStr = `성공 확률 ${pct}%`;
       const oddsColor = pct >= 80 ? '#FFE9B5' : pct >= 50 ? '#FFD166' : pct >= 20 ? '#FF9F45' : '#F87171';
-      const oddsFr = _frC(0.620, 0.745, 0.30, 0.05);
-      const oddsTxt = addText(scene, oddsFr.cx, oddsFr.cy, oddsStr, {
+      const oddsTxt = addText(scene, oddsFr.cx, oddsFr.cy, `성공 확률 ${pct}%`, {
         fontFamily: FONT, fontSize: '14px', color: oddsColor, fontStyle: '900',
       }).setOrigin(0.5);
       oddsTxt.setShadow(1, 1, '#000000', 2, false, true);
       _addEl(oddsTxt);
-    }
 
-    // 하단 버튼 — 이미지 frame y 정렬.
-    const btnFr = _frC(0.620, 0.835, 0.220, 0.075);
-    if (isMax) {
-      _addEl(addText(scene, btnFr.cx, btnFr.cy, '★  최대 강화 도달  ★', {
-        fontFamily: FONT, fontSize: '18px', color: COLOR_GOLD, fontStyle: '900',
-      }).setOrigin(0.5));
-    } else {
-      // 장비 강화 버튼 — "강화" 텍스트 + 다이아 아이콘 + 비용.
+      // 강화 버튼 — "강화" 텍스트 + 다이아 아이콘 + 비용.
       const btnColor = canAfford ? '#FFE9B5' : '#7A6F66';
-      const tempT = addText(scene, 0, 0, `강화   ${cost}`, {
-        fontFamily: FONT, fontSize: '20px', color: btnColor, fontStyle: '900',
-      }).setOrigin(0.5).setVisible(false);
-      const tWidth = tempT.width;
-      tempT.destroy();
       const ICON_S = 56, ICON_GAP_L = 14, ICON_GAP_R = 8;
-      // 레이아웃: [강화] [gap_L] [icon] [gap_R] [cost]
       const labelW_btn = addText(scene, 0, 0, '강화', { fontFamily: FONT, fontSize: '20px' }).setVisible(false);
-      const labelWidth = labelW_btn.width;
-      labelW_btn.destroy();
+      const labelWidth = labelW_btn.width; labelW_btn.destroy();
       const costW_btn = addText(scene, 0, 0, `${cost}`, { fontFamily: FONT, fontSize: '20px' }).setVisible(false);
-      const costWidth = costW_btn.width;
-      costW_btn.destroy();
+      const costWidth = costW_btn.width; costW_btn.destroy();
       const totalW2 = labelWidth + ICON_GAP_L + ICON_S + ICON_GAP_R + costWidth;
       const startX2 = btnFr.cx - totalW2 / 2;
-      // 강화 텍스트
       const txtL = addText(scene, startX2, btnFr.cy, '강화', {
         fontFamily: FONT, fontSize: '20px', color: btnColor, fontStyle: '900',
       }).setOrigin(0, 0.5);
       txtL.setShadow(2, 2, '#000000', 3, false, true);
       _addEl(txtL);
-      // 다이아 아이콘
       const btnIcon = scene.add.image(startX2 + labelWidth + ICON_GAP_L + ICON_S / 2, btnFr.cy, 'icon-diamond')
         .setDisplaySize(ICON_S, ICON_S * 0.62).setOrigin(0.5).setTint(0xFFD166);
       _addEl(btnIcon);
-      // 비용 텍스트
       const txtR = addText(scene, startX2 + labelWidth + ICON_GAP_L + ICON_S + ICON_GAP_R, btnFr.cy, `${cost}`, {
         fontFamily: FONT, fontSize: '20px', color: btnColor, fontStyle: '900',
       }).setOrigin(0, 0.5);
       txtR.setShadow(2, 2, '#000000', 3, false, true);
       _addEl(txtR);
-      // 호버 색 변경용 핸들.
       const btnTxt = { setColor: (c) => { txtL.setColor(c); txtR.setColor(c); } };
 
       const hit = scene.add.rectangle(btnFr.cx, btnFr.cy, btnFr.w, btnFr.h, 0x000000, 0.001)
         .setScrollFactor(0).setInteractive({ useHandCursor: true });
-      // [P-59 2차] 호버 제거 — pointerdown 강조, pointerup 액션.
       const restoreBtn = () => btnTxt.setColor(canAfford ? '#FFE9B5' : '#7A6F66');
-      hit.on('pointerdown', (p, lx, ly, ev) => {
-        if (ev) ev.stopPropagation();
-        if (canAfford) btnTxt.setColor('#FFFFFF');
-      });
+      hit.on('pointerdown', (p, lx, ly, ev) => { if (ev) ev.stopPropagation(); if (canAfford) btnTxt.setColor('#FFFFFF'); });
       hit.on('pointerupoutside', restoreBtn);
       hit.on('pointerup', () => {
         restoreBtn();
@@ -469,17 +529,84 @@ export function showUpgradeShop(scene, options = {}) {
           if (scene.events && scene.events.emit) scene.events.emit('toast', '❌ 다이아 부족');
           return;
         }
-        // 확인 다이얼로그 없이 즉시 강화.
         const res = upgradeSlot(slot);
         if (res && res.ok) {
-          // 성공/실패 텍스트 — 모루(중앙) 위에 표시.
-          const fxFr = _frC(0.620, 0.400, 0.30, 0.05);
           refreshBalance();
           _flashUpgradeResult(fxFr.cx, fxFr.cy, res.success);
           _renderContent();
         }
       });
       _addEl(hit);
+
+    } else {
+      // --- Lv 10 풀강: 각성(★) / 초월(✦) — 재료 도박, 실패 시 단계 하락 ---
+      const curLabel = awakenTier > 0 ? getAwakenLabel(awakenTier) : '현재';
+      drawBoxContent(leftBoxFr, curLabel, lv, 0, awakenTier);
+
+      if (isAwakenMax) {
+        drawBoxContent(rightBoxFr, '최대', lv, -2, awakenTier);
+        _addEl(addText(scene, btnFr.cx, btnFr.cy, '✦  최대 초월 달성  ✦', {
+          fontFamily: FONT, fontSize: '18px', color: '#C9A0FF', fontStyle: '900',
+        }).setOrigin(0.5));
+      } else {
+        drawBoxContent(rightBoxFr, getNextAwakenLabel(awakenTier), lv, -2, awakenTier + 1);
+
+        const odds = getAwakenOdds(slot);
+        const isTrans = awakenTier >= 5;   // 다음 단계가 초월(✦) 구간인지.
+        const matId = odds.cost ? odds.cost.id : 'awakenStone';
+        const matInfo = MATERIALS[matId] || { icon: '★', label: '재료' };
+        const pct = Math.round(odds.rate * 100);
+        const enough = odds.canAwaken;
+        const oddsColor = pct >= 50 ? '#C9A0FF' : pct >= 20 ? '#FF9F45' : '#F87171';
+
+        // 성공률.
+        const oddsTxt = addText(scene, oddsFr.cx, oddsFr.cy - 9, `성공 확률 ${pct}%`, {
+          fontFamily: FONT, fontSize: '14px', color: oddsColor, fontStyle: '900',
+        }).setOrigin(0.5);
+        oddsTxt.setShadow(1, 1, '#000000', 2, false, true);
+        _addEl(oddsTxt);
+        // 재료 소모 + 보유.
+        const matStr = `${matInfo.icon} ${matInfo.label} ${odds.cost.amount}  (보유 ${odds.have})`;
+        const matTxt2 = addText(scene, oddsFr.cx, oddsFr.cy + 9, matStr, {
+          fontFamily: FONT, fontSize: '12px', color: enough ? '#C9A0FF' : '#F87171', fontStyle: '800',
+        }).setOrigin(0.5);
+        matTxt2.setShadow(1, 1, '#000000', 2, false, true);
+        _addEl(matTxt2);
+        // 실패해도 단계 유지 (재료만 소모) — 강화와 동일한 소프트 방식.
+        _addEl(addText(scene, oddsFr.cx, oddsFr.cy + 26, '실패해도 단계 유지', {
+          fontFamily: FONT, fontSize: '10px', color: '#6A8A6A', fontStyle: '700',
+        }).setOrigin(0.5));
+
+        // 각성/초월 버튼.
+        const actLabel = isTrans ? '✦ 초월' : '★ 각성';
+        const txt = addText(scene, btnFr.cx, btnFr.cy, actLabel, {
+          fontFamily: FONT, fontSize: '20px', color: enough ? '#E9D5FF' : '#7A6F66', fontStyle: '900',
+        }).setOrigin(0.5);
+        txt.setShadow(2, 2, '#000000', 3, false, true);
+        _addEl(txt);
+
+        const hit = scene.add.rectangle(btnFr.cx, btnFr.cy, btnFr.w, btnFr.h, 0x000000, 0.001)
+          .setScrollFactor(0).setInteractive({ useHandCursor: true });
+        const restoreBtn = () => txt.setColor(enough ? '#E9D5FF' : '#7A6F66');
+        hit.on('pointerdown', (p, lx, ly, ev) => { if (ev) ev.stopPropagation(); if (enough) txt.setColor('#FFFFFF'); });
+        hit.on('pointerupoutside', restoreBtn);
+        hit.on('pointerup', () => {
+          restoreBtn();
+          if (!enough) {
+            if (scene.events && scene.events.emit) scene.events.emit('toast', `❌ ${matInfo.label} 부족`);
+            return;
+          }
+          const res = upgradeSlotAwaken(slot);
+          if (res && res.ok) {
+            refreshBalance();
+            const sLabel = isTrans ? '초월 성공!' : '각성 성공!';
+            const fLabel = isTrans ? '초월 실패…' : '각성 실패…';
+            _flashUpgradeResult(fxFr.cx, fxFr.cy, res.success, sLabel, fLabel);
+            _renderContent();
+          }
+        });
+        _addEl(hit);
+      }
     }
 
     // === [DEV] 장비 강화 초기화 버튼 — testMode 일 때만 표시. ===
@@ -502,6 +629,25 @@ export function showUpgradeShop(scene, options = {}) {
         if (scene.events && scene.events.emit) scene.events.emit('toast', '[DEV] 강화 초기화');
       });
       _addEl(devHit);
+
+      // [DEV] 선택 슬롯 즉시 Lv10 — 각성/초월 테스트용.
+      const dev2Fr = _frC(0.88, 0.10, 0.20, 0.05);
+      const dev2Txt = addText(scene, dev2Fr.cx, dev2Fr.cy, '[DEV] Lv10', {
+        fontFamily: FONT, fontSize: '15px', color: '#60A5FA', fontStyle: '900',
+      }).setOrigin(0.5);
+      dev2Txt.setShadow(2, 2, '#000000', 3, false, true);
+      _addEl(dev2Txt);
+      const dev2Hit = scene.add.rectangle(dev2Fr.cx, dev2Fr.cy, dev2Fr.w, dev2Fr.h, 0x000000, 0.001)
+        .setScrollFactor(0).setInteractive({ useHandCursor: true });
+      dev2Hit.on('pointerdown',      () => dev2Txt.setColor('#FFFFFF'));
+      dev2Hit.on('pointerupoutside', () => dev2Txt.setColor('#60A5FA'));
+      dev2Hit.on('pointerup', () => {
+        dev2Txt.setColor('#60A5FA');
+        devMaxSlot(_selSlot);
+        _renderContent();
+        if (scene.events && scene.events.emit) scene.events.emit('toast', '[DEV] Lv10 풀강');
+      });
+      _addEl(dev2Hit);
     }
   };
 

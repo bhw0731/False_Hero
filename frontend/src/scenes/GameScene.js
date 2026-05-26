@@ -10,7 +10,7 @@ import { commonCards, CARD_TIER_COLORS } from '../data/cards.js';
 import { items, SLOTS, SLOT_LABELS } from '../data/items.js';
 import { PASSIVES } from '../data/passives.js';
 import { specialCards } from '../data/specialCards.js';
-import { isUpgradeOwned, isEquipmentUnlocked, getSlotLevels } from '../data/meta/diamonds.js';
+import { isUpgradeOwned, isEquipmentUnlocked, getSlotLevels, getSlotAwakenAll } from '../data/meta/diamonds.js';
 import { STAR_CHAPTER } from '../data/meta/chapterStars.js';
 import { getSlotEffect } from '../data/meta/loadoutUpgrades.js';
 import { createModal } from '../ui/modals/Modal.js';
@@ -159,8 +159,9 @@ export default class GameScene extends Phaser.Scene {
     // bounds: 맵 시작 (player.x 시작 - W/2 정도 여유) ~ 맵 끝 (player.x + 8000 + W/2 여유).
     //   사용자가 우측 메인보스 까지 진행 후 멈춤. 좌측 / 우측 영원히 진행 X.
     const MAP_LENGTH = 8000;
-    // ⭐ 챕터 2 = 웨이브 모드 (플레이어가 달려가 처치). 카메라 follow 는 기존과 동일.
-    this._arenaMode = ((gameSettings && gameSettings.difficulty) === STAR_CHAPTER);
+    // 아레나(웨이브) 모드 비활성 — 전 챕터를 1챕터처럼 행군 모드로 통일.
+    //   (되살리려면: difficulty === STAR_CHAPTER 체크로 복원 + WaveSystem._isArena 동일 복원.)
+    this._arenaMode = false;
     cam.setBounds(-W / 2, 0, MAP_LENGTH + W, H);
     // startFollow(target, roundPixels, lerpX, lerpY) — Y lerp 0 으로 Y 잠금.
     cam.startFollow(this.player.sprite, true, 1.0, 0);
@@ -169,27 +170,10 @@ export default class GameScene extends Phaser.Scene {
     // deadzone 60×400 — 작은 움직임 무시.
     cam.setDeadzone(60, 400);
 
-    // ⭐ 챕터 2 — 달리기 모션 기준 Y 저장 (상하 바운스용).
-    if (this._arenaMode) {
-      this._playerBaseY = (this.player && this.player.sprite) ? this.player.sprite.y : 0;
-    }
+    // ⭐ 전 챕터 — 달리기 모션 기준 Y 저장 (상하 바운스용).
+    this._playerBaseY = (this.player && this.player.sprite) ? this.player.sprite.y : 0;
 
-    // ⭐ 챕터 2 아레나 — 상단 WAVE 카운터 (진행바 대체).
-    if (this._arenaMode) {
-      this._arenaWaveText = this.add.text(W * 0.5, 22, '', {
-        fontFamily: FONT, fontSize: '20px', color: '#FFD166', fontStyle: '900', letterSpacing: 2,
-      }).setOrigin(0.5, 0).setScrollFactor(0).setDepth(1500);
-      this._arenaWaveText.setShadow(0, 2, '#000000', 4, false, true);
-      this.events.on('arena-wave', ({ wave, total, boss }) => {
-        if (!this._arenaWaveText || !this._arenaWaveText.scene) return;
-        this._arenaWaveText.setText(boss ? '◆ BOSS WAVE ◆' : `WAVE ${wave} / ${total}`);
-        this._arenaWaveText.setColor(boss ? '#FF6B6B' : '#FFD166');
-        this.tweens.add({
-          targets: this._arenaWaveText, scale: { from: 1.25, to: 1 },
-          duration: 320, ease: 'Back.easeOut',
-        });
-      });
-    }
+    // (구) 챕터 2 아레나 상단 WAVE 카운터 — 제거됨. 스테이지 라벨과 겹쳐 옛 잔재로 정리.
 
     // === UI ===
 
@@ -377,14 +361,16 @@ export default class GameScene extends Phaser.Scene {
   _applyLoadout() {
     if (!isEquipmentUnlocked()) return;
     const levels = getSlotLevels();
+    const awaken = getSlotAwakenAll();   // [P-68] 슬롯별 각성/초월 단계.
     for (const slot of SLOTS) {
       const lv = levels[slot] || 0;
       if (lv <= 0) continue;
-      const effect = getSlotEffect(slot, lv);
+      const awakenTier = awaken[slot] || 0;
+      const effect = getSlotEffect(slot, lv, awakenTier);   // 각성/초월 배율 포함.
       // Player.equipItem 호환 인터페이스 사용 — 가짜 item 객체 만들어 효과 적용.
       this.player.equipItem({
-        id: `slot-${slot}-lv${lv}`,
-        name: `${slot} Lv${lv}`,
+        id: `slot-${slot}-lv${lv}-a${awakenTier}`,
+        name: `${slot} Lv${lv}+${awakenTier}`,
         slot, effect, passive: null,
       });
     }
@@ -651,13 +637,13 @@ export default class GameScene extends Phaser.Scene {
     if (this.player && this.player._updateSynergyTriggers) {
       this.player._updateSynergyTriggers(time);
     }
-    if (this._arenaMode) this._arenaJuiceUpdate(time);
+    this._arenaJuiceUpdate(time);   // ⭐ 전 챕터 — 달리기 모션 juice.
     this.player.updateHpDisplay();
     this.updateInfoText();
     this._updateProgressBar();
   }
 
-  // ⭐ 챕터 2 전용 — 달리기 모션 (상하 바운스 + 발밑 먼지). 시각 효과만, 좌표 로직 무영향.
+  // ⭐ 전 챕터 — 달리기 모션 (상하 바운스 + 발밑 먼지). 시각 효과만, 좌표 로직 무영향.
   _arenaJuiceUpdate(time) {
     const sp = this.player && this.player.sprite;
     if (!sp) return;
@@ -685,7 +671,7 @@ export default class GameScene extends Phaser.Scene {
 
   // === [무한 맵] 진행도 바 UI — 미니멀 ===
   _createProgressBar() {
-    if (this._arenaMode) return;   // ⭐ 챕터 2 아레나 — 진행바 대신 WAVE 카운터 사용.
+    if (this._arenaMode) { this._createArenaProgressBar(); return; }   // ⭐ 챕터 2 — 웨이브 진행바.
     const W = this.scale.width;
     const cx = W / 2;
     const y = 72;
@@ -804,6 +790,78 @@ export default class GameScene extends Phaser.Scene {
       const m = this._pbNpcMarkers[i];
       if (m) m.setFillStyle(npc.visited ? 0x4A4A4A : 0xFFD166);
     });
+  }
+
+  // === ⭐ 챕터 2 아레나 — 웨이브 진행바 (1챕터 진행바와 동일 비주얼, 웨이브 기반) ===
+  //   위치형 대신 웨이브 진행으로 채움. 마지막(보스) 웨이브 = 큰 빨강 마커.
+  //   'arena-wave' 이벤트로 갱신 (진행바 생성이 아레나 시작보다 먼저라 이벤트 의존).
+  _createArenaProgressBar() {
+    const W = this.scale.width;
+    const cx = W / 2;
+    const y = 72;
+    const barW = W * 0.5;
+    this._pbBarX = cx - barW / 2;
+    this._pbBarW = barW;
+    this._pbBarY = y;
+
+    // 얇은 베이스 라인 (1챕터와 동일).
+    this._pbBg = this.add.graphics().setDepth(12).setScrollFactor(0);
+    this._pbBg.fillStyle(0xFFFFFF, 0.15);
+    this._pbBg.fillRect(this._pbBarX, y, barW, 3);
+    // 진행 채움.
+    this._pbFill = this.add.graphics().setDepth(12).setScrollFactor(0);
+    this._pbWaveMarkers = [];
+
+    // 현재 상태 — 생성 시점에 이미 아레나가 시작됐을 수도 있어 직접 읽음.
+    const ws = this.waveSystem;
+    this._arenaWaveTotal = (ws && ws._arenaTotalWaves) || 0;
+    this._arenaWaveCur = (ws && ws._arenaWaveIndex != null && ws._arenaWaveIndex >= 0)
+      ? ws._arenaWaveIndex + 1 : 0;
+
+    // 웨이브 변경 시 갱신.
+    this.events.on('arena-wave', ({ wave, total }) => {
+      this._arenaWaveCur = wave;
+      this._arenaWaveTotal = total;
+      this._drawArenaProgress();
+    });
+    this._drawArenaProgress();
+  }
+
+  _drawArenaProgress() {
+    const total = this._arenaWaveTotal;
+    if (!total || total < 1 || !this._pbWaveMarkers) return;
+    const cur = this._arenaWaveCur;   // 1-based 현재 웨이브.
+    const my = this._pbBarY + 1.5;
+
+    // 마커 재생성.
+    this._pbWaveMarkers.forEach(m => m && m.destroy());
+    this._pbWaveMarkers = [];
+    for (let i = 0; i < total; i++) {
+      const isBoss = (i === total - 1);
+      const cleared = (i + 1) < cur;
+      const ratio = total === 1 ? 1 : i / (total - 1);
+      const x = this._pbBarX + ratio * this._pbBarW;
+      const color = cleared ? 0x3A3A3A : (isBoss ? 0xFF4444 : 0xDC2626);
+      const m = this.add.circle(x, my, isBoss ? 5 : 3.5, color)
+        .setDepth(isBoss ? 14 : 13).setScrollFactor(0);
+      this._pbWaveMarkers.push(m);
+    }
+    // 현재 웨이브 위치 — 흰 점 (1챕터 플레이어 마커와 동일 톤).
+    if (cur >= 1 && cur <= total) {
+      const ratio = total === 1 ? 1 : (cur - 1) / (total - 1);
+      const px = this._pbBarX + ratio * this._pbBarW;
+      const pm = this.add.circle(px, my, 4, 0xFFFFFF).setDepth(16).setScrollFactor(0);
+      this._pbWaveMarkers.push(pm);
+      // 채움 — 시작 ~ 현재 웨이브.
+      if (this._pbFill) {
+        this._pbFill.clear();
+        const fillW = ratio * this._pbBarW;
+        if (fillW > 0) {
+          this._pbFill.fillStyle(0xFFFFFF, 0.5);
+          this._pbFill.fillRect(this._pbBarX, this._pbBarY, fillW, 3);
+        }
+      }
+    }
   }
 
   // === 정보 표시 갱신 — TopBar.updateAll 한 번 호출로 통합 ===

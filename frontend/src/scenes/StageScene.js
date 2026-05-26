@@ -7,7 +7,7 @@ import { gameSettings, getAvailableChapters, difficultyLabels } from '../data/se
 import { FONT } from '../ui/theme.js';
 import { sound } from '../systems/SoundManager.js';
 import { getDiamonds, isEquipmentUnlocked } from '../data/meta/diamonds.js';
-import { STAR_CHAPTER, getStageStars, getTotalStars, MAX_TOTAL_STARS, getChests, getChestState, openChest, CHEST_STATE } from '../data/meta/chapterStars.js';
+import { getStageStars, getTotalStars, MAX_TOTAL_STARS, getChests, getChestState, openChest, CHEST_STATE } from '../data/meta/chapterStars.js';
 import { applyNearestToPixelTextures } from '../data/spriteOptions.js';
 import { attachTouchFeedback } from '../ui/touchFeedback.js';
 
@@ -141,11 +141,9 @@ export default class StageScene extends Phaser.Scene {
       const sel = this.currentSelection;
       if (!sel) return;
       const ref = this._currentNodeRefs[sel.stageIndex - 1];
-      // 클리어된 스테이지 / 잠긴 난이도 → 진입 차단 (되돌아가기 방지)
-      // ⭐ 단, 챕터 2(STAR_CHAPTER)는 별 갱신을 위해 클리어 스테이지 재도전 허용.
+      // 잠긴 난이도 / 이전 스테이지 미클리어 → 진입 차단.
+      // ⭐ 전 챕터 — 별 갱신을 위해 클리어한 스테이지는 재도전 허용 (클리어 차단 X).
       if (!this._isTest) {
-        const isCh2 = sel.difficulty === STAR_CHAPTER;
-        if (ref && ref.isCleared && !isCh2) return;
         if (ref && !ref.isStageUnlocked) return;   // 이전 스테이지 미클리어 — 진입 차단.
         if (this._isDifficultyLocked(sel.difficulty)) return;
       }
@@ -309,16 +307,16 @@ export default class StageScene extends Phaser.Scene {
       if (this._chapterRightArrow.input) this._chapterRightArrow.input.enabled = canRight;
     }
 
-    // ⭐ 챕터 2 전용 — 누적 별 카운터 + 보상 상자 행 (상단 가운데).
-    if (diff === STAR_CHAPTER) {
-      const total = getTotalStars();
+    // ⭐ 전 챕터 — 누적 별 카운터 + 보상 상자 행 (상단 가운데).
+    {
+      const total = getTotalStars(diff);
       const starTotal = this.add.text(this.scale.width * 0.5, 58,
         `★ ${total} / ${MAX_TOTAL_STARS}`, {
           fontFamily: FONT, fontSize: '17px', color: '#1a0f08', fontStyle: '900', letterSpacing: 1,
         }).setOrigin(0.5, 0.5).setDepth(900);
       starTotal.setShadow(1, 1, '#e8d4a8', 3, false, true);
       this._diffElements.push(starTotal);
-      this._renderChapter2Chests();
+      this._renderStarChests(diff);
     }
 
     // 노드 라인
@@ -478,9 +476,9 @@ export default class StageScene extends Phaser.Scene {
       // 이름은 노드별로 안 그림 — 선택된 노드만 _selectedNameText 에 표시 (모바일 가독성)
       const nameText = null;
 
-      // ⭐ 챕터 2 전용 — 노드 위 3성 표시 (양피지 황금 톤). 잠긴+기록없음이면 생략.
-      if (diff === STAR_CHAPTER) {
-        const earnedStars = getStageStars(stage);
+      // ⭐ 전 챕터 — 노드 위 3성 표시 (양피지 황금 톤). 잠긴+기록없음이면 생략.
+      {
+        const earnedStars = getStageStars(stage, diff);
         const showStarRow = isUnlocked && (stageUnlocked || stageCleared || earnedStars > 0);
         if (showStarRow) {
           const SGAP = 13;
@@ -499,8 +497,8 @@ export default class StageScene extends Phaser.Scene {
 
       this._diffElements.push(node, fillCircle, numText);
 
-      // 진입 가능 = 잠금 해제됨 + 미클리어. (⭐ 챕터 2는 클리어 스테이지도 재도전 가능.)
-      const isPlayable = isUnlocked && stageUnlocked && (!stageCleared || diff === STAR_CHAPTER);
+      // 진입 가능 = 잠금 해제됨. (⭐ 전 챕터 — 별 갱신용으로 클리어 스테이지도 재도전 가능.)
+      const isPlayable = isUnlocked && stageUnlocked;
 
       const ref = {
         node, fillCircle, nameText, numText,
@@ -531,11 +529,13 @@ export default class StageScene extends Phaser.Scene {
 
   // ⭐ 챕터 2 보상 상자 행 — ★10/20/30 도달 시 개봉 가능. 탭하면 💎 수령.
   //   상태: locked(별 부족) / openable(개봉 가능, 펄스+흔들) / opened(수령 완료, ✓).
-  _renderChapter2Chests() {
+  _renderStarChests(diff) {
+    if (diff != null) this._starDiff = diff;   // 상자 개봉 시 동일 챕터에 적용하도록 보관.
+    const d = this._starDiff;
     if (this._chestElements) this._chestElements.forEach(el => { if (el && el.destroy) el.destroy(); });
     this._chestElements = [];
     const W = this.scale.width;
-    const total = getTotalStars();
+    const total = getTotalStars(d);
     const chests = getChests();
     const cy = 92;
     const gap = 116;
@@ -543,7 +543,7 @@ export default class StageScene extends Phaser.Scene {
 
     chests.forEach((chest, i) => {
       const cx = startX + i * gap;
-      const state = getChestState(chest.need, total);
+      const state = getChestState(chest.need, d);
       const opened   = state === CHEST_STATE.OPENED;
       const openable = state === CHEST_STATE.OPENABLE;
 
@@ -600,7 +600,7 @@ export default class StageScene extends Phaser.Scene {
 
   // 상자 열기 — 💎 지급 + 플로팅 표시 + 카운터/행 갱신.
   _openChest(need, cx, cy) {
-    const reward = openChest(need);
+    const reward = openChest(need, this._starDiff);
     if (!reward) return;
     try { if (sound.treasureOpen) sound.treasureOpen(); } catch {}
     const float = this.add.text(cx, cy - 8, `💎 +${reward}`, {
@@ -613,7 +613,7 @@ export default class StageScene extends Phaser.Scene {
       onComplete: () => { try { float.destroy(); } catch {} },
     });
     // 열린 상태 반영.
-    this._renderChapter2Chests();
+    this._renderStarChests();
   }
 
   _pickDefaultStageInDifficulty(diff) {
@@ -701,12 +701,8 @@ export default class StageScene extends Phaser.Scene {
     const stageLocked = ref && !ref.isStageUnlocked;
     const diffLocked = !this._isTest && this._isDifficultyLocked(sel.difficulty);
     if (isCleared && !this._isTest) {
-      // ⭐ 챕터 2 — 별 갱신용 재도전 허용 (잠금 아님). 그 외 챕터는 정복 완료로 진입 차단.
-      if (sel.difficulty === STAR_CHAPTER) {
-        t.setColor('#f4d160').setText('▸ 재도전');
-        return;
-      }
-      t.setColor(COL_DISABLED).setText('— 정복 완료 —');
+      // ⭐ 전 챕터 — 별 갱신용 재도전 허용 (잠금 아님).
+      t.setColor('#f4d160').setText('▸ 재도전');
       return;
     }
     if (diffLocked || (stageLocked && !this._isTest)) {

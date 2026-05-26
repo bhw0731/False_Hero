@@ -11,13 +11,18 @@
 //   slotLevels[slot]                     — 8 슬롯 강화 (Lv 0~10), data/loadoutUpgrades.js 참조
 
 import { gameSettings } from '../settings.js';
-import { LEVEL_COSTS, MAX_LEVEL, getSuccessRate } from './loadoutUpgrades.js';
+import {
+  LEVEL_COSTS, MAX_LEVEL, getSuccessRate,
+  AWAKEN_TIER_MAX, getAwakenSuccessRate, getAwakenCost,
+} from './loadoutUpgrades.js';
+import { getMaterial, spendMaterial } from './materials.js';
 
 const DIAMOND_KEY = 'false-hero-diamonds';
 const DEV_DIAMONDS = 7777777;
 
 const EMPTY_SLOT_LEVELS = { head: 0, accessory: 0, body: 0, shield: 0, hands: 0, arms: 0, legs: 0, feet: 0 };
 const EMPTY_FAIL_STREAK = { head: 0, accessory: 0, body: 0, shield: 0, hands: 0, arms: 0, legs: 0, feet: 0 };
+const EMPTY_SLOT_AWAKEN = { head: 0, accessory: 0, body: 0, shield: 0, hands: 0, arms: 0, legs: 0, feet: 0 };
 
 const DEFAULT_STATE = {
   total: 0,
@@ -29,6 +34,7 @@ const DEFAULT_STATE = {
   },
   slotLevels: { ...EMPTY_SLOT_LEVELS },   // Phase P-55 — 슬롯 강화 시스템
   slotFails:  { ...EMPTY_FAIL_STREAK },   // [P-65] 슬롯별 연속 실패 (천장).
+  slotAwaken: { ...EMPTY_SLOT_AWAKEN },   // [P-68] 슬롯별 각성/초월 단계 (0~10).
   challenges: {},
 };
 
@@ -37,6 +43,7 @@ const _emptyState = () => ({
   upgrades:   { ...DEFAULT_STATE.upgrades },
   slotLevels: { ...EMPTY_SLOT_LEVELS },
   slotFails:  { ...EMPTY_FAIL_STREAK },
+  slotAwaken: { ...EMPTY_SLOT_AWAKEN },
 });
 const _isPlainObj = (v) => typeof v === 'object' && v !== null && !Array.isArray(v);
 
@@ -60,6 +67,16 @@ function _sanitizeFailStreak(raw) {
   return out;
 }
 
+function _sanitizeSlotAwaken(raw) {
+  if (!_isPlainObj(raw)) return { ...EMPTY_SLOT_AWAKEN };
+  const out = { ...EMPTY_SLOT_AWAKEN };
+  for (const k of Object.keys(EMPTY_SLOT_AWAKEN)) {
+    const v = raw[k];
+    if (Number.isInteger(v) && v >= 0 && v <= AWAKEN_TIER_MAX) out[k] = v;
+  }
+  return out;
+}
+
 function _read() {
   try {
     const raw = localStorage.getItem(DIAMOND_KEY);
@@ -73,6 +90,7 @@ function _read() {
       upgrades:    _isPlainObj(data.upgrades)   ? { ...DEFAULT_STATE.upgrades, ...data.upgrades } : { ...DEFAULT_STATE.upgrades },
       slotLevels:  _sanitizeSlotLevels(data.slotLevels),
       slotFails:   _sanitizeFailStreak(data.slotFails),
+      slotAwaken:  _sanitizeSlotAwaken(data.slotAwaken),
       challenges:  _isPlainObj(data.challenges) ? data.challenges  : {},
     };
   } catch {
@@ -179,6 +197,80 @@ export function upgradeSlot(slot) {
   return { ok: true, success, reason: null };
 }
 
+// === 각성(★) / 초월(✦) [P-68] ===
+//   awakenTier 0~10:  1~5 = ★,  6~10 = ✦.  Lv10(MAX_LEVEL) 풀강 슬롯만 가능.
+//   재료(각성석/초월석) 소모, 확률 도박, 실패 시 단계 1 하락 (최저 0).
+
+export function getSlotAwaken(slot) {
+  return (_read().slotAwaken || {})[slot] || 0;
+}
+
+export function getSlotAwakenAll() {
+  return { ...(_read().slotAwaken || EMPTY_SLOT_AWAKEN) };
+}
+
+// 다음 각성/초월 시도 정보 — UI 표시용.
+//   반환: { canAwaken, isMax, curTier, rate, cost:{id,amount}, have, reason }.
+//     canAwaken — 시도 가능 (Lv10 + 만렙 아님 + 재료 충분 / 데브).
+//     reason   — 불가 사유: 'notmaxlevel' | 'maxtier' | 'insufficient'.
+export function getAwakenOdds(slot) {
+  const state = _read();
+  const lv = (state.slotLevels || {})[slot] || 0;
+  const curTier = (state.slotAwaken || {})[slot] || 0;
+  const isDev = !!(gameSettings && gameSettings.testMode);
+
+  if (lv < MAX_LEVEL) {
+    return { canAwaken: false, isMax: false, curTier, rate: 0, cost: null, have: 0, reason: 'notmaxlevel' };
+  }
+  if (curTier >= AWAKEN_TIER_MAX) {
+    return { canAwaken: false, isMax: true, curTier, rate: 0, cost: null, have: 0, reason: 'maxtier' };
+  }
+  const cost = getAwakenCost(curTier);
+  const have = cost ? getMaterial(cost.id) : 0;
+  const enough = isDev || (cost && have >= cost.amount);
+  return {
+    canAwaken: enough,
+    isMax: false,
+    curTier,
+    rate: getAwakenSuccessRate(curTier),
+    cost,
+    have,
+    reason: enough ? null : 'insufficient',
+  };
+}
+
+// 한 단계 각성/초월 시도 — 확률 도박 (소프트 실패: 재료만 소모, 단계 유지).
+//   반환: { ok, success, reason, newTier }.
+//     ok      — 시도 자체가 유효 (Lv10 + 만렙 아님 + 재료 충분).
+//     success — 성공 여부. 성공 시 tier+1, 실패 시 단계 유지 (차감 X).
+//   reason: 'notmaxlevel' | 'maxtier' | 'insufficient' | 'invalid' (ok=false 일 때).
+export function upgradeSlotAwaken(slot) {
+  const state = _read();
+  if (!(slot in state.slotAwaken)) return { ok: false, success: false, reason: 'invalid', newTier: 0 };
+  const lv = state.slotLevels[slot] || 0;
+  if (lv < MAX_LEVEL) return { ok: false, success: false, reason: 'notmaxlevel', newTier: state.slotAwaken[slot] };
+  const curTier = state.slotAwaken[slot];
+  if (curTier >= AWAKEN_TIER_MAX) return { ok: false, success: false, reason: 'maxtier', newTier: curTier };
+
+  const cost = getAwakenCost(curTier);
+  const isDev = !!(gameSettings && gameSettings.testMode);
+
+  // 재료 소모 (성공/실패 무관 — 소프트). 데브는 차감 X.
+  if (!isDev) {
+    if (!cost || getMaterial(cost.id) < cost.amount) {
+      return { ok: false, success: false, reason: 'insufficient', newTier: curTier };
+    }
+    spendMaterial(cost.id, cost.amount);
+  }
+
+  // 성공 확률 — 데브여도 실제 확률 적용 (재료만 무제한).
+  const success = Math.random() < getAwakenSuccessRate(curTier);
+  // 성공 시에만 단계 상승. 실패해도 단계 유지 (재료만 소모) — 강화와 동일한 소프트 방식.
+  if (success) state.slotAwaken[slot] = curTier + 1;
+  _write(state);
+  return { ok: true, success, reason: null, newTier: state.slotAwaken[slot] };
+}
+
 // === 데브 / 디버그 ===
 
 export function devResetPurchases() {
@@ -186,11 +278,20 @@ export function devResetPurchases() {
   state.upgrades   = { startGold: false, startCard: false, startRevive: false };
   state.slotLevels = { ...EMPTY_SLOT_LEVELS };
   state.slotFails  = { ...EMPTY_FAIL_STREAK };
+  state.slotAwaken = { ...EMPTY_SLOT_AWAKEN };
   _write(state);
 }
 
 export function resetDiamonds() {
   try { localStorage.removeItem(DIAMOND_KEY); } catch {}
+}
+
+// [DEV] 슬롯을 즉시 Lv10 풀강 — 각성/초월 테스트용.
+export function devMaxSlot(slot) {
+  const state = _read();
+  if (!(slot in state.slotLevels)) return;
+  state.slotLevels[slot] = MAX_LEVEL;
+  _write(state);
 }
 
 // === 장비 시스템 잠금 ===
