@@ -12,7 +12,8 @@ import { gameSettings } from '../../data/settings.js';
 import { sound } from '../../systems/SoundManager.js';
 import { commonCards, CARD_TIER_COLORS, getRarityWeights, pickRarity, displayCardName } from '../../data/cards.js';
 import { omnipotentCard } from '../../data/cards/omnipotentCard.js';
-import { SIN_LIST, SIN_NAMES, SIN_COLORS } from '../../data/sins.js';
+import { SIN_LIST, SIN_NAMES, SIN_COLORS, SIN_ICONS, SIN_KEY } from '../../data/sins.js';
+import { getSynergyEffect } from '../../data/synergyEffects.js';
 import { SLOTS } from '../../data/items.js';
 import { PASSIVES } from '../../data/passives.js';
 import { FONT, addText } from '../theme.js';
@@ -891,4 +892,358 @@ export function showPickedCards(scene) {
   };
 
   _renderPage();
+}
+
+// === [P-71] 시너지 + 보유 카드 통합 모달 — 우측 패널 클릭 시 진입. ===
+//   좌측 컬럼: 7대죄 진행바(컴팩트) + 활성 시너지 단계 표시.
+//   우측 컬럼: 보유 카드 5×2 그리드 + 페이지네이션.
+//   기존 showSynergyInfo / showPickedCards 는 그대로 보존 (호환용).
+export function showInventoryAndSynergy(scene) {
+  if (scene._activeModal && !scene._activeModal._closed) return;
+
+  const player = scene.player;
+  const cards = (player && player.pickedCards) || [];
+  const count = cards.length;
+
+  // === 레이아웃 상수 ===
+  const LEFT_W = 340;             // 좌측 시너지 패널 폭 — 4개 섹션 모두 담음.
+  const CARD_W = 130, CARD_H = 190, GAP = 12;
+  const COLS = 5, ROWS = 2, PER_PAGE = COLS * ROWS;
+  const gridW = COLS * CARD_W + (COLS - 1) * GAP;     // 758
+  const gridH = ROWS * CARD_H + (ROWS - 1) * GAP;     // 392
+  const PAD = 20;                                     // 좌우/구분선 여백.
+  const modalW = LEFT_W + PAD * 3 + gridW;            // 340 + 60 + 758 = 1158.
+  const modalH = 580;                                 // 좌측 4섹션 + 우측 그리드 + 페이지컨트롤.
+
+  const modal = createModal(scene, {
+    title: count > 0 ? `보유 카드 & 시너지  (${count})` : '보유 카드 & 시너지',
+    width: modalW, height: modalH,
+    pauseGame: false,
+  });
+
+  // 컬럼 경계 (모달 body 로컬 x — body 중앙이 0).
+  const leftPanelL = -modal.w / 2 + PAD;
+  const leftPanelR = leftPanelL + LEFT_W;
+  const dividerX  = leftPanelR + PAD / 2;
+  const rightGridCx = dividerX + PAD / 2 + gridW / 2;   // 카드 그리드 중심 x.
+
+  // === 가운데 세로 구분선 ===
+  const divider = scene.add.graphics();
+  divider.lineStyle(1, 0xC5A059, 0.30);
+  divider.lineBetween(dividerX, modal.bodyTopY + 8, dividerX, modal.bodyBotY - 8);
+  modal.body.add(divider);
+
+  // === 좌측: 시너지 컬럼 ===
+  _renderSynergyColumn(scene, modal, leftPanelL, modal.bodyTopY + 12, LEFT_W);
+
+  // === 우측: 보유 카드 그리드 ===
+  const rightHeader = addText(scene, leftPanelR + PAD, modal.bodyTopY + 12, '◆ 보유 카드', {
+    fontFamily: FONT, fontSize: '18px', color: COLOR_GOLD, fontStyle: '800',
+  }).setOrigin(0, 0);
+  rightHeader.setShadow(1, 1, '#000000', 2, false, true);
+  modal.body.add(rightHeader);
+
+  if (count === 0) {
+    const empty = addText(scene, rightGridCx, modal.bodyTopY + gridH / 2 + 20, '아직 뽑은 카드가 없습니다', {
+      fontFamily: FONT, fontSize: '18px', color: COLOR_TEXT_2ND, fontStyle: '500',
+    }).setOrigin(0.5);
+    empty.setShadow(1, 1, '#000000', 2, false, true);
+    modal.body.add(empty);
+    return;
+  }
+
+  const totalPages = Math.max(1, Math.ceil(count / PER_PAGE));
+  let currentPage = 0;
+  let _pageEls = [];
+  const _clearPage = () => { _pageEls.forEach(e => e && e.destroy && e.destroy()); _pageEls = []; };
+
+  const _renderPage = () => {
+    _clearPage();
+    const startIdx = currentPage * PER_PAGE;
+    const slice = cards.slice(startIdx, startIdx + PER_PAGE);
+    const startX = rightGridCx - gridW / 2 + CARD_W / 2;
+    const startY = modal.bodyTopY + 40 + CARD_H / 2;
+
+    slice.forEach((card, i) => {
+      const col = i % COLS;
+      const row = Math.floor(i / COLS);
+      const x = startX + col * (CARD_W + GAP);
+      const y = startY + row * (CARD_H + GAP);
+
+      const tier = card.tier || card.rarity || 'normal';
+      const tierInfo = CARD_TIER_COLORS[tier] || CARD_TIER_COLORS.normal;
+      const accent = tierInfo.color;
+
+      const cardG = scene.add.graphics();
+      cardG.fillStyle(0x000000, 0.4);
+      cardG.fillRoundedRect(x - CARD_W / 2, y - CARD_H / 2, CARD_W, CARD_H, 6);
+      cardG.lineStyle(1, accent, 0.6);
+      cardG.strokeRoundedRect(x - CARD_W / 2, y - CARD_H / 2, CARD_W, CARD_H, 6);
+      cardG.fillStyle(accent, 0.85);
+      cardG.fillRect(x - CARD_W / 2 + 4, y - CARD_H / 2 + 1, CARD_W - 8, 1);
+      modal.body.add(cardG); _pageEls.push(cardG);
+
+      const tierLbl = addText(scene, x, y - CARD_H / 2 + 14, tierInfo.name || '노말', {
+        fontFamily: FONT, fontSize: '13px', color: tierInfo.hex || COLOR_TEXT_2ND, fontStyle: '700',
+      }).setOrigin(0.5);
+      tierLbl.setShadow(1, 1, '#000000', 2, false, true);
+      modal.body.add(tierLbl); _pageEls.push(tierLbl);
+
+      const iconTxt = addText(scene, x, y - 56, card.icon || '🃏', {
+        fontFamily: FONT, fontSize: '24px',
+      }).setOrigin(0.5);
+      modal.body.add(iconTxt); _pageEls.push(iconTxt);
+
+      const nameTxt = addText(scene, x, y - 22, displayCardName(card), {
+        fontFamily: FONT, fontSize: '15px', color: COLOR_TEXT_PRI, fontStyle: '700',
+        align: 'center', wordWrap: { width: CARD_W - 12 },
+      }).setOrigin(0.5);
+      nameTxt.setShadow(1, 1, '#000000', 2, false, true);
+      modal.body.add(nameTxt); _pageEls.push(nameTxt);
+
+      const descTxt = addText(scene, x, y + 30, card.desc || '', {
+        fontFamily: FONT, fontSize: '12px', color: COLOR_TEXT_2ND,
+        align: 'center', wordWrap: { width: CARD_W - 12 }, lineSpacing: 3,
+      }).setOrigin(0.5);
+      modal.body.add(descTxt); _pageEls.push(descTxt);
+    });
+    _refreshPageCtrl();
+  };
+
+  // === 페이지 컨트롤 (우측 컬럼 하단) ===
+  const ctrlY = modal.bodyBotY - 24;
+  const prevBtn = addText(scene, rightGridCx - 80, ctrlY, '◀ 이전', {
+    fontFamily: FONT, fontSize: '19px', color: COLOR_TEXT_2ND, fontStyle: '700',
+  }).setOrigin(0.5).setScrollFactor(0).setInteractive({ useHandCursor: true });
+  prevBtn.setShadow(1, 1, '#000000', 2, false, true);
+  prevBtn.on('pointerdown', (p, lx, ly, ev) => {
+    if (ev) ev.stopPropagation();
+    if (currentPage > 0) { currentPage -= 1; _renderPage(); }
+  });
+  modal.body.add(prevBtn);
+
+  const pageTxt = addText(scene, rightGridCx, ctrlY, '', {
+    fontFamily: FONT, fontSize: '18px', color: COLOR_GOLD, fontStyle: '700',
+  }).setOrigin(0.5);
+  pageTxt.setShadow(1, 1, '#000000', 2, false, true);
+  modal.body.add(pageTxt);
+
+  const nextBtn = addText(scene, rightGridCx + 80, ctrlY, '다음 ▶', {
+    fontFamily: FONT, fontSize: '19px', color: COLOR_TEXT_2ND, fontStyle: '700',
+  }).setOrigin(0.5).setScrollFactor(0).setInteractive({ useHandCursor: true });
+  nextBtn.setShadow(1, 1, '#000000', 2, false, true);
+  nextBtn.on('pointerdown', (p, lx, ly, ev) => {
+    if (ev) ev.stopPropagation();
+    if (currentPage < totalPages - 1) { currentPage += 1; _renderPage(); }
+  });
+  modal.body.add(nextBtn);
+
+  const _refreshPageCtrl = () => {
+    pageTxt.setText(`${currentPage + 1} / ${totalPages}`);
+    prevBtn.setColor(currentPage > 0 ? COLOR_GOLD : COLOR_TEXT_MUTED);
+    nextBtn.setColor(currentPage < totalPages - 1 ? COLOR_GOLD : COLOR_TEXT_MUTED);
+  };
+
+  _renderPage();
+}
+
+// 좌측 시너지 컬럼 — 4개 섹션 모두 포함 (옛 SynergyInfoModal 전체 정보):
+//   ① 활성 시너지 (단일/듀얼 효과 설명)
+//   ② 7대죄 진행바 (아이콘 + 카운트 + 게이지 + 다음 단계 라벨)
+//   ③ 단계 진행 (보유 죄별 텍스트 — "N장 더 필요")
+//   ④ 다음 보스 디버프 (현 스테이지 디버프)
+function _renderSynergyColumn(scene, modal, leftX, topY, width) {
+  const player = scene.player;
+  const sinCounts = (player && player.sinCounts) || {};
+  const synergyDisabled = !!(player && player._debuffOverrides && player._debuffOverrides.synergyDisabled);
+  // player 가 활성/보조 죄 노출하면 그걸 사용, 없으면 최다 카운트 기준 계산.
+  let maxCount = 0, computedActive = null;
+  SIN_LIST.forEach(s => {
+    const c = sinCounts[s] || 0;
+    if (c > maxCount) { maxCount = c; computedActive = s; }
+  });
+  const activeSin    = player && player.activeSin    ? player.activeSin    : computedActive;
+  const secondarySin = player && player.secondarySin ? player.secondarySin : null;
+  const synergyTier  = player && player.synergyTier  ? player.synergyTier  : (
+    maxCount >= 9 ? 3 : maxCount >= 6 ? 2 : maxCount >= 3 ? 1 : 0
+  );
+  const dualActive   = !!(player && player.dualActive);
+  const dualSinKey   = player && player.dualSinKey;
+
+  let cy = topY;
+
+  // === ① 활성 시너지 ===
+  const synHeader = addText(scene, leftX, cy, '◆ 활성 시너지', {
+    fontFamily: FONT, fontSize: '20px', color: COLOR_GOLD, fontStyle: '800',
+  }).setOrigin(0, 0);
+  synHeader.setShadow(1, 1, '#000000', 2, false, true);
+  modal.body.add(synHeader);
+  cy += 26;
+
+  if (synergyDisabled) {
+    const warn = addText(scene, leftX, cy, '🔒 시너지 비활성화 (디버프)', {
+      fontFamily: FONT, fontSize: '14px', color: '#F87171', fontStyle: '800',
+    }).setOrigin(0, 0);
+    warn.setShadow(1, 1, '#000000', 2, false, true);
+    modal.body.add(warn);
+    cy += 20;
+  }
+
+  // 단일 효과.
+  let singleLine, singleColor;
+  if (activeSin && synergyTier > 0) {
+    const effectId = `${SIN_KEY[activeSin]}_${synergyTier}`;
+    const effect = getSynergyEffect(effectId);
+    const effText = effect && effect.description
+      ? (effect.description.split('—').slice(1).join('—').trim() || effect.description)
+      : '';
+    singleLine = `단일: ${SIN_ICONS[activeSin] || ''} ${SIN_NAMES[activeSin] || activeSin} ${synergyTier}단계${effText ? '\n' + effText : ''}`;
+    singleColor = synergyDisabled ? '#5A5A5F' : '#A4D86E';
+  } else {
+    singleLine = '단일: 비활성 (한 죄 카드 ≥3장 필요)';
+    singleColor = '#5A5A5F';
+  }
+  const singleTxt = addText(scene, leftX + 4, cy, singleLine, {
+    fontFamily: FONT, fontSize: '14px', color: singleColor, fontStyle: '700',
+    wordWrap: { width: width - 8 }, lineSpacing: 3,
+  }).setOrigin(0, 0);
+  singleTxt.setShadow(1, 1, '#000000', 2, false, true);
+  modal.body.add(singleTxt);
+  cy += singleTxt.height + 6;
+
+  // 듀얼 효과.
+  let dualLine, dualColor;
+  if (dualActive && dualSinKey) {
+    const dualEffect = getSynergyEffect(dualSinKey);
+    const a = activeSin || '';
+    const b = secondarySin || '';
+    const effText = dualEffect && dualEffect.description ? dualEffect.description : '';
+    dualLine = `듀얼: ★ ${a} + ${b}${effText ? '\n' + effText : ''}`;
+    dualColor = synergyDisabled ? '#5A5A5F' : '#6AD8FF';
+  } else {
+    dualLine = '듀얼: 비활성 (활성+2번째 죄 둘 다 ≥3 필요)';
+    dualColor = '#5A5A5F';
+  }
+  const dualTxt = addText(scene, leftX + 4, cy, dualLine, {
+    fontFamily: FONT, fontSize: '14px', color: dualColor, fontStyle: '700',
+    wordWrap: { width: width - 8 }, lineSpacing: 3,
+  }).setOrigin(0, 0);
+  dualTxt.setShadow(1, 1, '#000000', 2, false, true);
+  modal.body.add(dualTxt);
+  cy += dualTxt.height + 12;
+
+  // === ② 7대죄 진행바 ===
+  const sinHeader = addText(scene, leftX, cy, '◆ 7대죄', {
+    fontFamily: FONT, fontSize: '20px', color: COLOR_GOLD, fontStyle: '800',
+  }).setOrigin(0, 0);
+  sinHeader.setShadow(1, 1, '#000000', 2, false, true);
+  modal.body.add(sinHeader);
+  cy += 26;
+
+  const ROW_H = 28;
+  const BAR_W = 170, BAR_H = 8;
+  const SYN_MAX = 9;
+  SIN_LIST.forEach(sin => {
+    const c = sinCounts[sin] || 0;
+    const sinHex = SIN_COLORS[sin] || '#FFFFFF';
+    const sinColor = parseInt(sinHex.replace('#', '0x'), 16);
+    const isActive    = (sin === activeSin    && c > 0);
+    const isSecondary = (sin === secondarySin && c > 0);
+    const accent = isActive ? 0xFFD166 : (isSecondary ? 0xC0C0C8 : sinColor);
+    const rowCy = cy + ROW_H / 2;
+
+    const iconTxt = addText(scene, leftX + 9, rowCy, SIN_ICONS[sin] || '?', {
+      fontFamily: FONT, fontSize: '15px',
+    }).setOrigin(0.5);
+    if (c === 0) iconTxt.setAlpha(0.4);
+    modal.body.add(iconTxt);
+
+    const countTxt = addText(scene, leftX + 26, rowCy, `${c}`, {
+      fontFamily: FONT, fontSize: '15px',
+      color: c > 0 ? (isActive ? '#FFE9B5' : (isSecondary ? '#D8D8DC' : '#D8D8DC')) : '#5A5A5F', fontStyle: '900',
+    }).setOrigin(0, 0.5);
+    countTxt.setShadow(1, 1, '#000000', 2, false, true);
+    modal.body.add(countTxt);
+
+    const barX = leftX + 46;
+    const barG = scene.add.graphics();
+    barG.fillStyle(0x1A1208, 0.85);
+    barG.fillRoundedRect(barX, rowCy - BAR_H / 2, BAR_W, BAR_H, 2);
+    barG.lineStyle(1, accent, isActive ? 0.95 : (isSecondary ? 0.75 : 0.40));
+    barG.strokeRoundedRect(barX, rowCy - BAR_H / 2, BAR_W, BAR_H, 2);
+    const fillRatio = Math.min(1, c / SYN_MAX);
+    if (fillRatio > 0) {
+      barG.fillStyle(accent, isActive ? 1.0 : 0.85);
+      const fillW = Math.max(2, BAR_W * fillRatio - 2);
+      barG.fillRoundedRect(barX + 1, rowCy - BAR_H / 2 + 1, fillW, BAR_H - 2, 1.5);
+    }
+    modal.body.add(barG);
+
+    const nextThr = c < 3 ? 3 : c < 6 ? 6 : c < 9 ? 9 : null;
+    const tierLabel = nextThr ? `→ ${nextThr}` : '★ MAX';
+    const tierColor = nextThr ? '#9A9AA2' : '#FFD166';
+    const tLbl = addText(scene, barX + BAR_W + 6, rowCy, tierLabel, {
+      fontFamily: FONT, fontSize: '13px', color: tierColor, fontStyle: '700',
+    }).setOrigin(0, 0.5);
+    tLbl.setShadow(1, 1, '#000000', 2, false, true);
+    modal.body.add(tLbl);
+
+    cy += ROW_H;
+  });
+  cy += 10;
+
+  // === ③ 단계 진행 (보유 죄별 한 줄 메시지) ===
+  const progHeader = addText(scene, leftX, cy, '◆ 단계 진행', {
+    fontFamily: FONT, fontSize: '20px', color: COLOR_GOLD, fontStyle: '800',
+  }).setOrigin(0, 0);
+  progHeader.setShadow(1, 1, '#000000', 2, false, true);
+  modal.body.add(progHeader);
+  cy += 26;
+
+  const nonZeroSins = SIN_LIST.filter(s => (sinCounts[s] || 0) > 0);
+  if (nonZeroSins.length === 0) {
+    const empty = addText(scene, leftX + 4, cy, '(보유 카드 없음)', {
+      fontFamily: FONT, fontSize: '14px', color: '#5A5A5F',
+    }).setOrigin(0, 0);
+    modal.body.add(empty);
+    cy += 18;
+  } else {
+    nonZeroSins.forEach(sin => {
+      const c = sinCounts[sin] || 0;
+      const name = SIN_NAMES[sin] || sin;
+      let msg;
+      if (c >= 9)      msg = `${name} 9단계 (최대)`;
+      else if (c >= 6) msg = `${name} 6단계 → 9까지 ${9 - c}장`;
+      else if (c >= 3) msg = `${name} 3단계 → 6까지 ${6 - c}장`;
+      else             msg = `${name} ${c}장 → 3까지 ${3 - c}장 더`;
+      const t = addText(scene, leftX + 4, cy, msg, {
+        fontFamily: FONT, fontSize: '14px', color: SIN_COLORS[sin] || COLOR_TEXT_PRI, fontStyle: '600',
+      }).setOrigin(0, 0);
+      t.setShadow(1, 1, '#000000', 2, false, true);
+      modal.body.add(t);
+      cy += 18;
+    });
+  }
+  cy += 10;
+
+  // === ④ 다음 보스 (스테이지 디버프) ===
+  const bossHeader = addText(scene, leftX, cy, '◆ 다음 보스', {
+    fontFamily: FONT, fontSize: '20px', color: COLOR_GOLD, fontStyle: '800',
+  }).setOrigin(0, 0);
+  bossHeader.setShadow(1, 1, '#000000', 2, false, true);
+  modal.body.add(bossHeader);
+  cy += 26;
+
+  const ws = scene.waveSystem;
+  const stage = (ws && ws.currentStage) || 1;
+  const debuff = (ws && ws._currentStageDebuff) ? ws._currentStageDebuff() : null;
+  const debuffLine = debuff
+    ? `스테이지 ${stage} — ${debuff.desc || debuff.name || ''}`
+    : `스테이지 ${stage} — 디버프 없음`;
+  const debuffTxt = addText(scene, leftX + 4, cy, debuffLine, {
+    fontFamily: FONT, fontSize: '14px', color: debuff ? '#F87171' : '#9A9AA2', fontStyle: '700',
+    wordWrap: { width: width - 8 }, lineSpacing: 3,
+  }).setOrigin(0, 0);
+  debuffTxt.setShadow(1, 1, '#000000', 2, false, true);
+  modal.body.add(debuffTxt);
 }

@@ -1,141 +1,128 @@
-// [Phase P-54] 보유 카드 우측 세로 띠 — 인게임 항상 표시 (모달 클릭 X).
+// [P-69 A-안] 우측 7대죄 진행바 패널 — 옛 카드 리스트 대체.
 //
-// 위치: 캔버스 우측 가장자리. TopBar 아이콘 (y ~60) 아래 ~ 물약 슬롯 (y ~H-70) 위.
-// 표시: 최근 픽한 카드 N장 (위→아래), 죄 색 fill + 등급 색 외곽. 클릭 → showPickedCards 모달.
-// 갱신: scene.events 'card-picked' 또는 외부 refresh() 호출.
+// 위치: 캔버스 우측 가장자리. TopBar 아이콘 (y~60) 아래.
+// 표시: 7개 죄 각각 한 줄 — [아이콘 · 게이지 · 카운트]. 게이지 = 시너지 최대 단계(9) 까지 채움.
+// 활성 죄(최다 카운트) = 골드 톤 강조. 카운트 증가 시 해당 줄 펄스.
+// 클릭 시 → showPickedCards 모달 (보유 카드 전체 보기).
 //
 // 사용:
 //   const strip = new PickedCardsStrip(scene);
-//   strip.refresh();   // 카드 픽 후
+//   strip.refresh();   // 카드 픽 후 ('card-picked' 이벤트로 자동 호출)
 //   strip.destroy();   // 씬 종료 시
 
 import { addText, FONT } from '../theme.js';
-import { CARD_TIER_COLORS } from '../../data/cards.js';
-import { SIN_COLORS, SIN_ICONS, SIN_KEY } from '../../data/sins.js';
+import { SIN_COLORS, SIN_ICONS, SIN_KEY, SIN_LIST } from '../../data/sins.js';
 
-const CARD_W = 28, CARD_H = 28, GAP = 4;
 const RIGHT_MARGIN = 16;
-const TOP_Y = 80;       // TopBar 아이콘 (y=60) 아래
-const BOT_PAD = 100;    // 물약 슬롯 위 여유
-const MAX_CARDS = 12;
-const DEPTH = 11;
+const PANEL_W = 62;
+const ROW_H   = 22;
+const BAR_W   = 30, BAR_H = 5;
+const TOP_Y   = 80;       // TopBar 아이콘 (y=60) 아래
+const SYN_MAX = 9;        // SYNERGY_TIERS[0] — 마지막 시너지 단계 진입 임계치 = 게이지 만수치.
+const DEPTH   = 11;
 
 class PickedCardsStrip {
   constructor(scene) {
     this.scene = scene;
     const W = (scene.scale && scene.scale.width)  || 1280;
-    const H = (scene.scale && scene.scale.height) || 600;
-    this._cx = W - RIGHT_MARGIN - CARD_W / 2;
-    this._topY = TOP_Y;
-    this._availH = H - BOT_PAD - TOP_Y;
-    // 슬롯 그래픽/텍스트 보존 (refresh 마다 정리 후 재생성)
+    this._cx = W - RIGHT_MARGIN - PANEL_W / 2;
     this._elements = [];
-    // [Phase P-54] 신규 픽 펄스 — 마지막 픽 카드 수 추적해 추가될 때 첫 칸 애니메이션.
-    this._lastCardCount = 0;
-    // 클릭 hit 영역 (전체 띠) — 항상 활성. 클릭 시 모달 오픈.
+    this._lastSinCounts = {};
     this._buildHit();
     this.refresh();
   }
 
   _buildHit() {
-    const W = (this.scene.scale && this.scene.scale.width)  || 1280;
-    const H = (this.scene.scale && this.scene.scale.height) || 600;
-    const hitH = H - BOT_PAD - TOP_Y;
-    this._hit = this.scene.add.rectangle(this._cx, TOP_Y + hitH / 2, CARD_W + 8, hitH, 0x000000, 0.001)
+    const hitH = ROW_H * SIN_LIST.length + 8;
+    this._hit = this.scene.add.rectangle(this._cx, TOP_Y + hitH / 2, PANEL_W + 4, hitH, 0x000000, 0.001)
       .setDepth(DEPTH).setScrollFactor(0).setInteractive({ useHandCursor: true });
     this._hit.on('pointerdown', () => {
-      if (this.scene.showPickedCards) this.scene.showPickedCards();
+      // [P-71] 우측 탭 → 시너지 + 보유 카드 통합 모달 (좌측 시너지 클릭 트리거는 제거됨).
+      if (this.scene.showInventoryAndSynergy) this.scene.showInventoryAndSynergy();
+      else if (this.scene.showPickedCards)    this.scene.showPickedCards();
     });
     if (this.scene.markAsUI) this.scene.markAsUI(this._hit);
   }
 
   refresh() {
-    // 기존 정리
+    // 기존 정리.
     this._elements.forEach(el => { try { el && el.destroy && el.destroy(); } catch {} });
     this._elements = [];
 
     const player = this.scene.player;
-    const cards = (player && player.pickedCards) || [];
-    const isNewPick = cards.length > this._lastCardCount;
-    this._lastCardCount = cards.length;
-    if (cards.length === 0) return;
+    if (!player) return;
+    const sinCounts = player.sinCounts || {};
+    const prevCounts = this._lastSinCounts || {};
 
-    // 가장 최근 카드 위쪽. slice 로 최대 MAX_CARDS 개 (오래된 거 절단).
-    const visible = cards.slice(-MAX_CARDS).reverse();
+    // 활성 죄 = 최다 카운트 (>0 일 때만). 동률은 첫 번째.
+    let maxCount = 0, activeSin = null;
+    SIN_LIST.forEach(s => {
+      const c = sinCounts[s] || 0;
+      if (c > maxCount) { maxCount = c; activeSin = s; }
+    });
 
-    visible.forEach((card, i) => {
-      const sx = this._cx;
-      const sy = TOP_Y + CARD_H / 2 + i * (CARD_H + GAP);
-      const tierInfo = CARD_TIER_COLORS[card.tier || card.rarity || 'normal'] || CARD_TIER_COLORS.normal;
-      const accent  = tierInfo.color;
-      const sinHex  = card.sin ? (SIN_COLORS[card.sin] || '#FFFFFF') : '#FFFFFF';
+    const leftX = this._cx - PANEL_W / 2;
+    SIN_LIST.forEach((sin, i) => {
+      const c = sinCounts[sin] || 0;
+      const rowY = TOP_Y + ROW_H / 2 + i * ROW_H;
+      const sinHex = SIN_COLORS[sin] || '#FFFFFF';
       const sinColor = parseInt(sinHex.replace('#', '0x'), 16);
+      const isActive = (sin === activeSin && c > 0);
+      const accent = isActive ? 0xFFD166 : sinColor;
 
-      // 슬롯 배경 (글래스)
-      const g = this.scene.add.graphics().setDepth(DEPTH).setScrollFactor(0);
-      g.fillStyle(0x000000, 0.55);
-      g.fillRoundedRect(sx - CARD_W / 2, sy - CARD_H / 2, CARD_W, CARD_H, 4);
-      g.lineStyle(1, 0xFFFFFF, 0.15);
-      g.strokeRoundedRect(sx - CARD_W / 2, sy - CARD_H / 2, CARD_W, CARD_H, 4);
-      // 등급 색 외곽
-      g.lineStyle(1.5, accent, 0.85);
-      g.strokeRoundedRect(sx - CARD_W / 2, sy - CARD_H / 2, CARD_W, CARD_H, 4);
-      // 죄 색 좌측 미세 바 (정체성 표시)
-      g.fillStyle(sinColor, 0.85);
-      g.fillRect(sx - CARD_W / 2 + 2, sy - CARD_H / 2 + 3, 2, CARD_H - 6);
-      this._elements.push(g);
-
-      // 죄 아이콘 — 픽셀 이미지 우선, 없으면 emoji 폴백.
-      const sinKey = card.sin ? SIN_KEY[card.sin] : null;
+      // 죄 아이콘 (좌측). 픽셀 이미지 우선, emoji 폴백.
+      const sinKey = SIN_KEY[sin];
       const imgKey = sinKey ? `sin_${sinKey}` : null;
+      const iconX = leftX + 8;
       let iconEl;
       if (imgKey && this.scene.textures && this.scene.textures.exists(imgKey)) {
-        iconEl = this.scene.add.image(sx + 2, sy, imgKey)
-          .setDisplaySize(CARD_W - 6, CARD_H - 6)
-          .setDepth(DEPTH + 1).setScrollFactor(0);
+        iconEl = this.scene.add.image(iconX, rowY, imgKey)
+          .setDisplaySize(12, 12).setDepth(DEPTH + 1).setScrollFactor(0);
       } else {
-        const iconChar = SIN_ICONS[card.sin] || card.icon || '?';
-        iconEl = addText(this.scene, sx + 2, sy, iconChar, {
-          fontFamily: FONT, fontSize: '15px',
+        iconEl = addText(this.scene, iconX, rowY, SIN_ICONS[sin] || '?', {
+          fontFamily: FONT, fontSize: '11px',
         }).setOrigin(0.5).setDepth(DEPTH + 1).setScrollFactor(0);
       }
+      if (c === 0) iconEl.setAlpha(0.4);
       this._elements.push(iconEl);
 
-      if (this.scene.markAsUI) this.scene.markAsUI([g, iconEl]);
+      // 진행 게이지 — 트랙(어두움) + 채움(죄/금 색). 그래픽은 자체 중심 기준으로 그려 스케일 안전.
+      const barCx = leftX + 17 + BAR_W / 2;
+      const barG = this.scene.add.graphics().setDepth(DEPTH).setScrollFactor(0);
+      barG.x = barCx; barG.y = rowY;
+      barG.fillStyle(0x1A1208, 0.85);
+      barG.fillRoundedRect(-BAR_W / 2, -BAR_H / 2, BAR_W, BAR_H, 2);
+      barG.lineStyle(1, accent, isActive ? 0.95 : 0.40);
+      barG.strokeRoundedRect(-BAR_W / 2, -BAR_H / 2, BAR_W, BAR_H, 2);
+      const fillRatio = Math.min(1, c / SYN_MAX);
+      if (fillRatio > 0) {
+        barG.fillStyle(accent, isActive ? 1.0 : 0.85);
+        const fillW = Math.max(2, BAR_W * fillRatio - 2);
+        barG.fillRoundedRect(-BAR_W / 2 + 1, -BAR_H / 2 + 1, fillW, BAR_H - 2, 1.5);
+      }
+      this._elements.push(barG);
 
-      // [Phase P-54] 신규 픽 펄스 — 첫 칸 (i===0) 에서만, isNewPick true 일 때.
-      if (isNewPick && i === 0) {
-        const pulseG = this.scene.add.graphics().setDepth(DEPTH - 1).setScrollFactor(0);
-        pulseG.lineStyle(2, accent, 1);
-        pulseG.strokeRoundedRect(sx - CARD_W / 2 - 2, sy - CARD_H / 2 - 2, CARD_W + 4, CARD_H + 4, 6);
-        this._elements.push(pulseG);
-        if (this.scene.markAsUI) this.scene.markAsUI(pulseG);
-        // 펄스 트윈 — 외곽 확장 + 페이드 아웃 (1.5초 후 자동 destroy)
+      // 카운트 텍스트 (우측).
+      const countTxt = addText(this.scene, leftX + PANEL_W - 4, rowY, `${c}`, {
+        fontFamily: FONT, fontSize: '11px',
+        color: c > 0 ? (isActive ? '#FFE9B5' : '#D8D8DC') : '#5A5A5F', fontStyle: '900',
+      }).setOrigin(1, 0.5).setDepth(DEPTH + 1).setScrollFactor(0);
+      countTxt.setShadow(1, 1, '#000000', 2, false, true);
+      this._elements.push(countTxt);
+
+      if (this.scene.markAsUI) this.scene.markAsUI([iconEl, barG, countTxt]);
+
+      // 카운트 증가 펄스 — 행이 살짝 부풀었다 정착.
+      if ((prevCounts[sin] || 0) < c) {
         this.scene.tweens.add({
-          targets: pulseG, alpha: { from: 1, to: 0 },
-          duration: 1500, ease: 'Sine.easeOut',
-          onComplete: () => { try { pulseG.destroy(); } catch {} },
+          targets: [iconEl, barG, countTxt],
+          scaleX: { from: 1.35, to: 1 }, scaleY: { from: 1.35, to: 1 },
+          duration: 380, ease: 'Back.easeOut',
         });
-        // 아이콘 살짝 펄스 (scale 1.0 → 1.2 → 1.0)
-        if (iconEl.setScale) {
-          this.scene.tweens.add({
-            targets: iconEl, scale: { from: 1.3, to: 1 },
-            duration: 600, ease: 'Back.easeOut',
-          });
-        }
       }
     });
 
-    // 카드 더 있으면 하단에 "+N" 표시
-    if (cards.length > MAX_CARDS) {
-      const overflowSy = TOP_Y + CARD_H / 2 + MAX_CARDS * (CARD_H + GAP);
-      const moreTxt = addText(this.scene, this._cx, overflowSy, `+${cards.length - MAX_CARDS}`, {
-        fontFamily: FONT, fontSize: '12px', color: '#9A9AA2', fontStyle: '700',
-      }).setOrigin(0.5).setDepth(DEPTH + 1).setScrollFactor(0);
-      moreTxt.setShadow(1, 1, '#000000', 2, false, true);
-      this._elements.push(moreTxt);
-      if (this.scene.markAsUI) this.scene.markAsUI(moreTxt);
-    }
+    this._lastSinCounts = { ...sinCounts };
   }
 
   destroy() {

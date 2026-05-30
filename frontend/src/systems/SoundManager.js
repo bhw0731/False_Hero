@@ -149,12 +149,6 @@ class SoundManager {
     setTimeout(() => this.beep(1568, 100, 0.30, 'sine'), 60);          // G6
   }
 
-  // 신의 시험 수락 — 묵직한 저음 (음산함)
-  trialAccept() {
-    this._sweep(220, 110, 240, 0.35, 'sawtooth');
-    this._noiseBurst(180, 0.20, 500, 'lowpass');
-  }
-
   // 보스 등장 — 깊은 horn (긴장감)
   bossAppear() {
     this._sweep(120, 240, 400, 0.40, 'sawtooth');

@@ -24,9 +24,10 @@ import {
   showStageClear as fxShowStageClear,
 } from '../ui/hud/CombatFX.js';
 import {
-  showCardSelection  as fxShowCardSelection,
-  showPurchasedItems as fxShowPurchasedItems,
-  showPickedCards    as fxShowPickedCards,
+  showCardSelection         as fxShowCardSelection,
+  showPurchasedItems        as fxShowPurchasedItems,
+  showPickedCards           as fxShowPickedCards,
+  showInventoryAndSynergy   as fxShowInventoryAndSynergy,
 } from '../ui/modals/InventoryModals.js';
 import { showInventory as fxShowInventory } from '../ui/modals/InventoryModal.js';
 import {
@@ -1078,6 +1079,8 @@ export default class GameScene extends Phaser.Scene {
   showPurchasedItems() { fxShowPurchasedItems(this); }
   showPickedCards()    { fxShowPickedCards(this); }
   showSynergyInfo()    { fxShowSynergyInfo(this); }
+  // [P-71] 우측 패널 탭 — 시너지 + 보유 카드 통합 모달.
+  showInventoryAndSynergy() { fxShowInventoryAndSynergy(this); }
   // 게임 클리어 / 게임 오버 — 본체는 ui/CombatFX.js 로 분리, 이벤트 리스너 호환용 wrapper
   showGameClear(unlockedDifficulty) { fxShowGameClear(this, unlockedDifficulty); }
   showGameOver() { fxShowGameOver(this); }

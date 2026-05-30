@@ -26,7 +26,7 @@ export default class SplashScene extends Phaser.Scene {
     }
 
     // === 터치 안내 멘트 — 화면 중앙, 은은한 호흡(깜빡임) ===
-    const prompt = this.add.text(W * 0.5, H * 0.5, '화면을 아무곳에나 클릭 한 번 해주세요', {
+    const prompt = this.add.text(W * 0.5, H * 0.5, '화면을 아무대나 한 번 터치 해주세요', {
       fontFamily: FONT,
       fontSize: '22px',
       color: '#C8C8CE',
@@ -36,15 +36,10 @@ export default class SplashScene extends Phaser.Scene {
     }).setOrigin(0.5).setAlpha(0);
     prompt.setShadow(0, 1, '#000000', 4, false, true);
 
-    // 작은 크레딧 — 우측 하단 (기존 톤 유지)
-    const credit = this.add.text(W * 0.97, H * 0.97, 'false hero studios', {
-      fontFamily: FONT, fontSize: '11px', color: '#4A4A4A', letterSpacing: 1,
-    }).setOrigin(1, 1).setAlpha(0);
-
     // === 등장: 페이드인 후 호흡 루프 시작 ===
     this.cameras.main.fadeIn(380, 0, 0, 0);
     this.tweens.add({
-      targets: [prompt, credit], alpha: 1, duration: 600, delay: 200, ease: 'Sine.easeOut',
+      targets: [prompt], alpha: 1, duration: 600, delay: 200, ease: 'Sine.easeOut',
       onComplete: () => {
         this.tweens.add({
           targets: prompt, alpha: 0.35,

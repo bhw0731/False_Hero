@@ -74,7 +74,7 @@ export default class WaveSystem {
     this.eliteBoss = null;         // [Phase P-54] 정예 보스 — 서브와 메인 사이
     this.mainBoss = null;          // 메인보스
     this.shopNpcs = [];            // 매점 NPC 위치 목록 (서브×3 + 정예 + 메인 = 5개)
-    this._eventNodes = [];         // [Phase P-54] 이벤트 노드 (보물상자/신의시험)
+    this._eventNodes = [];         // [Phase P-54] 이벤트 노드 (보물상자)
 
     // 스테이지 상태
     this.waveActive = false;       // 호환 stub — 스테이지 진행 중 = true
@@ -311,7 +311,7 @@ export default class WaveSystem {
     this._spawnMobs();
     // [Phase P-54] 엘리트 잡몹 — 강한 일반 적 (보스 X). 스테이지당 2마리.
     this._spawnEliteMobs();
-    // [Phase P-54] 이벤트 노드 — 보물 상자 2개 + 신의 시험 1개.
+    // [Phase P-54] 이벤트 노드 — 보물 상자 4개.
     this._spawnEventNodes();
 
     this.combatSystem.setEnemies(this.enemies);
@@ -412,8 +412,7 @@ export default class WaveSystem {
     });
   }
 
-  // [Phase P-54] 이벤트 노드 spawn — 총 5개. 고정 분포 (셔플 X).
-  //   시작 직후: 신의 시험 (도박 강제 선택)
+  // [Phase P-54] 이벤트 노드 spawn — 보물상자 4개. 고정 분포 (셔플 X).
   //   서브1 직후: 보물상자
   //   서브2 직후: 보물상자
   //   서브3 직후: 보물상자
@@ -427,13 +426,11 @@ export default class WaveSystem {
     if (!sub1 || !sub2 || !sub3 || !elite) return;
     if (!sub1.sprite || !sub2.sprite || !sub3.sprite || !elite.sprite) return;
 
-    // 시작 직후 신의 시험 — 플레이어 시작점 235 + 80 = 315 (잡몹 segment 시작 435 직전)
-    this._eventNodes.push(new EventNode(this.scene, PLAYER_START_X + 80, 446, 'trial'));
     // 각 보스 직후 보물 상자 (120px 휴식 구역)
-    this._eventNodes.push(new EventNode(this.scene, sub1.sprite.x + 120, 446, 'treasure'));
-    this._eventNodes.push(new EventNode(this.scene, sub2.sprite.x + 120, 446, 'treasure'));
-    this._eventNodes.push(new EventNode(this.scene, sub3.sprite.x + 120, 446, 'treasure'));
-    this._eventNodes.push(new EventNode(this.scene, elite.sprite.x + 120, 446, 'treasure'));
+    this._eventNodes.push(new EventNode(this.scene, sub1.sprite.x + 120, 446));
+    this._eventNodes.push(new EventNode(this.scene, sub2.sprite.x + 120, 446));
+    this._eventNodes.push(new EventNode(this.scene, sub3.sprite.x + 120, 446));
+    this._eventNodes.push(new EventNode(this.scene, elite.sprite.x + 120, 446));
   }
 
   // [Phase P-54] 엘리트 잡몹 spawn — 강한 일반 적 (보스 X). 잡몹 segment 안 무작위 위치.
@@ -468,8 +465,6 @@ export default class WaveSystem {
     const sub2 = this.subBosses[1];
     const elite = this.eliteBoss;
     const bossesAll = [sub1, sub2, sub3, elite, main];
-    // 신의 시험 (시작 직후).
-    occupiedX.push({ x: PLAYER_START_X + 80, halfW: 40 });
     bossesAll.forEach(b => {
       if (b && b.sprite) occupiedX.push({ x: b.sprite.x - NPC_BEFORE_BOSS, halfW: 40 });  // 매점 NPC
     });
@@ -866,7 +861,7 @@ export default class WaveSystem {
       });
     }
 
-    // [Phase P-54] 이벤트 노드 (보물상자/신의시험) 근접 체크
+    // [Phase P-54] 이벤트 노드 (보물상자) 근접 체크
     if (this._eventNodes) {
       this._eventNodes.forEach((node) => {
         if (node && node.update) node.update(this.player);

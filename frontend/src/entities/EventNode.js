@@ -1,53 +1,41 @@
-// [Phase P-54] 이벤트 노드 — 무한 맵 상 고정 배치. 플레이어 근접 시 효과/모달.
-// 두 가지 타입:
-//   'treasure' — 보물 상자. 즉시 무작위 보상 (골드/영약/다이아/회복).
-//   'trial'    — 신의 시험. 모달 표시 → 수락 시 디버프 + 다이아 보상 / 거절 시 skip.
+// [Phase P-54] 이벤트 노드 — 무한 맵 상 고정 배치. 플레이어 근접 시 모달.
+//   보물 상자: 즉시 무작위 보상 (골드/영약/다이아/회복) 또는 함정 도박.
 
-import { addText, FONT } from '../ui/theme.js';
 import { showConfirmDialog } from '../ui/modals/ConfirmDialog.js';
 import { addDiamonds } from '../data/meta/diamonds.js';
 import { sound } from '../systems/SoundManager.js';
 
-const NODE_RADIUS = 22;
+const NODE_RADIUS = 20;
 const APPROACH_DIST = 90;
-const VISITED_ALPHA = 0.25;
+const FADE_OUT_MS  = 380;     // [P-70] 사용 후 완전 소멸 시간 (잔상 X).
 
+// [P-70] 헤럴드 메달리온 톤 — 어두운 베이스 + 골드 링 + 상자 글리프.
 const TREASURE = {
-  bg: 0xFFE066,    // 골드 라이트
-  stroke: 0xC5A059,
-  icon: '🎁',
-  label: '보물',
-  labelColor: '#FFE066',
-};
-const TRIAL = {
-  bg: 0xA855F7,    // 보라
-  stroke: 0x6A2EB8,
-  icon: '💀',
-  label: '시험',
-  labelColor: '#C084FC',
+  base: 0x1A1208,       // 어두운 가죽/돌 베이스
+  ring: 0xE5C26B,       // 골드 라이트 링
+  glyphColor: 0xE5C26B,
+  glyphShade: 0x6A4A1F,
 };
 
 export default class EventNode {
-  constructor(scene, x, y, type = 'treasure') {
+  constructor(scene, x, y) {
     this.scene = scene;
     this.x = x;
     this.y = y;
-    this.type = type;
     this.visited = false;
-    const cfg = type === 'trial' ? TRIAL : TREASURE;
+    const cfg = TREASURE;
 
-    this.bg = scene.add.circle(x, y, NODE_RADIUS, cfg.bg, 0.95)
-      .setStrokeStyle(2, cfg.stroke, 1)
+    // 베이스 메달리온.
+    this.bg = scene.add.circle(x, y, NODE_RADIUS, cfg.base, 0.92)
+      .setStrokeStyle(2, cfg.ring, 1)
       .setDepth(8);
-    this.icon = addText(scene, x, y - 2, cfg.icon, {
-      fontFamily: FONT, fontSize: '24px',
-    }).setOrigin(0.5).setDepth(9);
-    this.label = addText(scene, x, y + 32, cfg.label, {
-      fontFamily: FONT, fontSize: '12px', color: cfg.labelColor, fontStyle: '700',
-    }).setOrigin(0.5).setDepth(9);
-    this.label.setShadow(1, 1, '#000000', 2, false, true);
 
-    // 부드러운 부유 애니메이션
+    // 글리프 — 자물쇠 달린 상자 (그래픽으로 직접 그림).
+    this.icon = scene.add.graphics().setDepth(9);
+    this.icon.x = x; this.icon.y = y;
+    _drawChest(this.icon, cfg.glyphColor, cfg.glyphShade);
+
+    // 부드러운 부유 애니메이션.
     scene.tweens.add({
       targets: [this.bg, this.icon],
       y: y - 5,
@@ -68,13 +56,8 @@ export default class EventNode {
     if (dist < APPROACH_DIST) {
       this.visited = true;
       this._fade();
-      this._trigger(player);
+      this._triggerTreasure(player);
     }
-  }
-
-  _trigger(player) {
-    if (this.type === 'treasure') this._triggerTreasure(player);
-    else if (this.type === 'trial') this._triggerTrial(player);
   }
 
   // [Phase P-54] 모달 열 때 일시정지 / 닫을 때 재개. eventModalActive 플래그로 GameScene.update 도 차단.
@@ -171,54 +154,39 @@ export default class EventNode {
     }
   }
 
-  // === 신의 시험 — 일시정지 + 모달 선택: 수락 (디버프 + 다이아) vs 거절 ===
-  _triggerTrial(player) {
-    const trials = [
-      { desc: '공격력 -30%', apply: (p) => { p.activeBuffs.attackPower = (p.activeBuffs.attackPower || 0) - 0.30; } },
-      { desc: '명중 -20%',   apply: (p) => { p.activeBuffs.accuracy    = (p.activeBuffs.accuracy    || 0) - 0.20; } },
-      { desc: '받는 피해 +20%', apply: (p) => { p.activeBuffs.damageReduction = (p.activeBuffs.damageReduction || 0) - 0.20; } },
-    ];
-    const trial = trials[Math.floor(Math.random() * trials.length)];
-    const reward = 3 + Math.floor(Math.random() * 3);  // 3~5 다이아
-
-    this._pauseGame();
-    showConfirmDialog(this.scene, {
-      title: '💀 신의 시험',
-      message: `이번 스테이지 ${trial.desc} 감수\n→ 다이아 +${reward}\n\n수락하시겠습니까?`,
-      overlayCloses: false,   // 외곽 실수 클릭으로 닫히지 않음 — 명시적 선택 필수
-      onConfirm: () => {
-        this._resumeGame();
-        sound.trialAccept();
-        sound.diamondGain();
-        trial.apply(player);
-        addDiamonds(reward, '신의 시험');
-        if (this.scene.events && this.scene.events.emit) {
-          this.scene.events.emit('toast', `💀 시험 수락 — 다이아 +${reward}`);
-        }
-      },
-      onCancel: () => {
-        this._resumeGame();
-        if (this.scene.events && this.scene.events.emit) {
-          this.scene.events.emit('toast', '💀 시험 거절');
-        }
-      },
-    });
-  }
-
   _fade() {
     if (!this.scene || !this.scene.tweens) return;
+    // [P-70] 사용 후 부유 정지 → 페이드 아웃 → 완전 소멸 (스테이지에서 사라짐).
+    this.scene.tweens.killTweensOf([this.bg, this.icon]);
     this.scene.tweens.add({
-      targets: [this.bg, this.icon, this.label],
-      alpha: VISITED_ALPHA,
-      duration: 400,
+      targets: [this.bg, this.icon],
+      alpha: 0,
+      duration: FADE_OUT_MS,
       ease: 'Sine.easeOut',
+      onComplete: () => this.destroy(),
     });
   }
 
   destroy() {
     if (this.bg && this.bg.destroy) this.bg.destroy();
     if (this.icon && this.icon.destroy) this.icon.destroy();
-    if (this.label && this.label.destroy) this.label.destroy();
-    this.bg = null; this.icon = null; this.label = null;
+    this.bg = null; this.icon = null;
   }
+}
+
+// === 글리프 헬퍼 — 그래픽으로 직접 그린 헤럴드 심볼 ===
+
+// 보물: 자물쇠 달린 상자 (가로 폭 16, 높이 12, 뚜껑 라인 + 중앙 자물쇠 점).
+function _drawChest(g, color, shadeColor) {
+  const w = 16, h = 12;
+  g.fillStyle(shadeColor, 1);
+  g.fillRoundedRect(-w / 2, -h / 2, w, h, 2);
+  g.lineStyle(1.5, color, 1);
+  g.strokeRoundedRect(-w / 2, -h / 2, w, h, 2);
+  // 뚜껑 가로선 (위쪽 1/3 지점).
+  g.lineStyle(1.5, color, 0.9);
+  g.lineBetween(-w / 2, -h / 6, w / 2, -h / 6);
+  // 자물쇠 점.
+  g.fillStyle(color, 1);
+  g.fillCircle(0, h / 6, 1.6);
 }

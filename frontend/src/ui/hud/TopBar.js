@@ -213,98 +213,15 @@ class TopBar {
     const STAT_END_Y = STAT_Y0 + (STATS_DEF.length - 1) * STAT_DY;   // 313
 
     // [Phase P-40] 구분선 2: stat 영역 ↔ 시너지 영역.
-    const synDivider = scene.add.graphics().setDepth(this._hudDepth).setScrollFactor(0);
-    synDivider.lineStyle(1, COL.goldDark, 0.4);
-    synDivider.lineBetween(STAT_X + 8, STAT_END_Y + 14, STAT_X + STAT_W - 8, STAT_END_Y + 14);
-    this._leftBottomEls.push(synDivider);
-
-    // [Phase P-40] 활성 죄 단계 라벨 — y=340, 좌측 정렬.
-    const TIER_LBL_Y = STAT_END_Y + 28;
-    this._synergyTierText = addText(scene, STAT_X + 12, TIER_LBL_Y, '', {
-      fontFamily: HUD_FONT, fontSize: '15px', color: '#9A9AA2', fontStyle: '700',
-    }).setOrigin(0, 0.5).setDepth(this._hudDepth + 2).setScrollFactor(0);
-    this._synergyTierText.setShadow(1, 1, '#000000', 2, false, true);
-    this._leftBottomEls.push(this._synergyTierText);
-
-    // [Phase P-40] 듀얼 마크 — 우측 끝.
-    this._synergyDualText = addText(scene, STAT_X + STAT_W - 12, TIER_LBL_Y, '', {
-      fontFamily: HUD_FONT, fontSize: '14px', color: '#F87171', fontStyle: '700',
-    }).setOrigin(1, 0.5).setDepth(this._hudDepth + 2).setScrollFactor(0);
-    this._synergyDualText.setShadow(1, 1, '#000000', 2, false, true);
-    this._leftBottomEls.push(this._synergyDualText);
-
-    // 7대죄 카운터 줄 — y=370.
-    const SYN_Y = STAT_END_Y + 58;
-    const SYN_LEFT = 12, SYN_RIGHT = STAT_W - 4;
-    const cellW = (SYN_RIGHT - SYN_LEFT) / SIN_LIST.length;
-    this._synergyTexts = {};
-    SIN_LIST.forEach((sin, i) => {
-      const cx = SYN_LEFT + cellW * (i + 0.5);
-      const txt = addText(scene, cx, SYN_Y, `${SIN_ICONS[sin]}0`, {
-        fontFamily: HUD_FONT, fontSize: '14px', color: '#5A5A5F', fontStyle: '700',
-      }).setOrigin(0.5, 0.5).setDepth(this._hudDepth + 2).setScrollFactor(0);
-      txt.setShadow(1, 1, '#000000', 2, false, true);
-      this._synergyTexts[sin] = txt;
-      this._leftBottomEls.push(txt);
-    });
-    // 시너지 영역 클릭 → SynergyInfoModal — 단계 라벨 + 카운터 영역 모두 클릭.
-    const synHit = scene.add.rectangle(
-      STAT_X + STAT_W / 2, (TIER_LBL_Y + SYN_Y) / 2, STAT_W - 8, (SYN_Y - TIER_LBL_Y) + 22, 0x000000, 0.001
-    ).setDepth(this._hudDepth + 3).setScrollFactor(0).setInteractive({ useHandCursor: true });
-    synHit.on('pointerdown', (p, lx, ly, ev) => {
-      if (ev) ev.stopPropagation();
-      if (scene.showSynergyInfo) scene.showSynergyInfo();
-    });
-    this._leftBottomEls.push(synHit);
+    // [P-71] 좌측 시너지 영역 전체 제거 — 7대죄 카운터/단계 라벨/듀얼 마크 모두 우측 통합 모달로 이동.
+    //   기존 핸들: this._synergyTexts / this._synergyTierText / this._synergyDualText 미생성.
+    //   updateSynergy 는 no-op (호환 stub) — 외부 호출자가 깨지지 않게 함수 자체는 유지.
   }
 
-  // 7대죄 카운트 + 활성/2번째 죄 시너지 갱신 (updateAll에서 호출)
-  // 색 룰:
-  //   활성 (1순위)        — SIN_COLORS 색 (밝게)
-  //   2번째 (2순위)       — SIN_COLORS 약 65% 톤다운 (어둡게)
-  //   그 외 카운트 > 0    — '#9A9AA2' (회색)
-  //   카운트 0            — '#5A5A5F' (어두운 회색)
-  // 듀얼 활성 시 — 활성/2번째 라벨에 굵게(800) 강조. (셀 폭 좁아 별 prefix 는 생략)
-  updateSynergy(sinCounts, activeSin, secondarySin, dualActive) {
-    if (!this._synergyTexts) return;
-    SIN_LIST.forEach(sin => {
-      const t = this._synergyTexts[sin];
-      if (!t) return;
-      const c = (sinCounts && sinCounts[sin]) || 0;
-      t.setText(`${SIN_ICONS[sin]}${c}`);
-      if (sin === activeSin) {
-        t.setColor(SIN_COLORS[sin]);
-      } else if (sin === secondarySin) {
-        t.setColor(_dimHex(SIN_COLORS[sin], 0.65));
-      } else {
-        t.setColor(c > 0 ? '#9A9AA2' : '#5A5A5F');
-      }
-      // 듀얼 활성 — 활성/2번째 두 라벨만 굵게
-      const isDualPair = !!(dualActive && (sin === activeSin || sin === secondarySin));
-      if (t.style) t.style.fontStyle = isDualPair ? '800' : '700';
-      t.dirty = true;
-    });
-
-    // [Phase P-40] 활성 죄 단계 라벨 갱신 (예: "🔥 분노 3 (3단계)").
-    if (this._synergyTierText) {
-      const player = this.scene && this.scene.player;
-      const tier = (player && player.synergyTier) || 0;
-      if (activeSin && tier > 0) {
-        const sinIcon = SIN_ICONS[activeSin] || '';
-        const sinName = SIN_NAMES[activeSin] || activeSin;
-        const tierName = TIER_NAMES[tier] || `${tier}단계`;
-        this._synergyTierText.setText(`${sinIcon} ${sinName} ${tier} (${tierName})`);
-        this._synergyTierText.setColor(TIER_COLORS[tier] || SIN_COLORS[activeSin] || '#E8E8E8');
-      } else {
-        this._synergyTierText.setText('시너지 비활성');
-        this._synergyTierText.setColor('#5A5A5F');
-      }
-    }
-    // [Phase P-40] 듀얼 마크.
-    if (this._synergyDualText) {
-      this._synergyDualText.setText(dualActive ? '★ 듀얼' : '');
-    }
-  }
+  // [P-71] no-op stub — 좌측 시너지 표시가 제거되어 호출만 받고 아무것도 안 함.
+  //   호환을 위해 시그니처 유지 (updateAll → updateSynergy 흐름이 깨지지 않음).
+  //   실제 시너지 정보는 우측 PickedCardsStrip 탭 → showInventoryAndSynergy 통합 모달에서 표시.
+  updateSynergy(/* sinCounts, activeSin, secondarySin, dualActive */) {}
 
   // === 상단 가운데 — 스테이지/웨이브/남은적 ===
   // [Phase P-19] cx 480 → 640 (캔버스 1280 가운데).
@@ -321,7 +238,7 @@ class TopBar {
     }).setOrigin(0.5, 0).setDepth(this._hudDepth).setScrollFactor(0);
     this.stageTimerText.setShadow(1, 1, '#000000', 2, false, true);
     // [Phase P-54] 챕터 디버프 표시 — 진행도 바 (y=72, h=3) 아래 배치 (겹침 방지).
-    // 챕터 디버프 = 호박색 ⚠ (시험 디버프 BuffStrip 빨강 💀 과 톤 구분)
+    // 챕터 디버프 = 호박색 ⚠ (BuffStrip 의 함정 디버프 빨강과 톤 구분)
     this.stageDebuffText = addText(this.scene, cx, 82, '', {
       fontFamily: HUD_FONT, fontSize: '12px', color: '#FBBF24', fontStyle: '600',
     }).setOrigin(0.5, 0).setDepth(this._hudDepth).setScrollFactor(0);

@@ -562,6 +562,15 @@ export default class Player {
   // stat 'expMul' 은 특수 — activeBuffs 대신 _stageExpMul 에 누적.
   addTimedBuff(stat, delta, durationMs = 30000) {
     if (!this.activeBuffs) this.activeBuffs = {};
+    // [버그수정] 매점 등에서 같은 버프(stat+delta)를 중복 구매 시 스택 누적 X — 지속시간만 리셋.
+    //   서로 다른 delta(예: 양수 영약 + 음수 디버프)는 독립이라 그대로 누적.
+    if (this._timedBuffs && this._timedBuffs.length > 0) {
+      const existing = this._timedBuffs.find(b => b.stat === stat && b.delta === delta);
+      if (existing) {
+        existing.remainMs = durationMs;
+        return;
+      }
+    }
     if (stat === 'expMul') {
       this._stageExpMul = (this._stageExpMul || 1) + delta;
     } else {

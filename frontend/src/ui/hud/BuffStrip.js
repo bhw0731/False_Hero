@@ -1,5 +1,5 @@
 // [Phase P-54] 활성 버프/디버프 표시 띠 — 좌측 스탯 박스 아래 세로 스택.
-// 영약 / 부적 / 보물상자 보상 / 신의 시험 디버프 모두 표시.
+// 영약 / 부적 / 보물상자 보상 + 함정 디버프 표시.
 //
 // 데이터 소스:
 //   - player.activeBuffs.{attackPower, attackSpeed, damageReduction, lifesteal, accuracy, dodge}

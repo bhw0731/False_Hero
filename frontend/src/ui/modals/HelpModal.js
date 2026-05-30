@@ -149,7 +149,7 @@ export function showHelpModal(scene, opts = {}) {
     y += _addLine('⚪ 캐릭터  🔴 서브보스  🟣 정예 보스  🔴 메인보스  🟡 매점 NPC', y, { size: '13px', gap: 8 });
 
     y += _addHeader('◆ 상단 가운데 버프 띠', y);
-    y += _addLine('영약/시험 효과 표시. 초록=긍정, 빨강=디버프. 시간 제한 시 남은 초 표시.', y, { size: '13px', gap: 8 });
+    y += _addLine('영약/함정 효과 표시. 초록=긍정, 빨강=디버프. 시간 제한 시 남은 초 표시.', y, { size: '13px', gap: 8 });
 
     y += _addHeader('◆ 우상단 아이콘', y);
     y += _addLine('⚔ 장비    ☰ 메뉴', y, { size: '13px', gap: 8 });
@@ -178,8 +178,7 @@ export function showHelpModal(scene, opts = {}) {
     y += _addHeader('◆ 매점 NPC', y);
     y += _addLine('각 보스 직전 1개 (5 보스 = 5 매점).', y, { gap: 8 });
 
-    y += _addHeader('◆ 이벤트 (스테이지당 5개)', y);
-    y += _addLine('💀 신의 시험 (시작 직후) — 디버프 감수 시 다이아 보상.', y);
+    y += _addHeader('◆ 이벤트 (스테이지당 4개)', y);
     y += _addLine('🎁 보물 상자 ×4 (각 보스 직후) — 좋은 보상 or 함정 도박.', y, { color: COLOR_MUTED, gap: 8 });
 
     y += _addHeader('◆ 엘리트 잡몹', y);
